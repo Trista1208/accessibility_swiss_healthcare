@@ -124,6 +124,7 @@ def remove_bad_columns(df, threshold=0.3):
         # Create boolean mask for bad values
         bad_mask = (
             (col_series == 0) | 
+            (col_series == '0')|
             (col_series == 'None') | 
             (col_series == '') | 
             col_series.isna()
