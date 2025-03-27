@@ -1,28 +1,13 @@
 import pandas as pd
 import re
-from collections import defaultdict
 from datetime import datetime
-import os
-import glob
-import numpy as np
 
-def extract_lighthouse_scores(input_file):
-    """
-    Extract Lighthouse scores from Excel or CSV file using Omar's approach
-    which is more robust for varied formats.
-    """
-    print(f"Extracting scores from {input_file}...")
-    
-    # Determine file type and read accordingly
-    if input_file.endswith('.xlsx'):
-        df = pd.read_excel(input_file)
-    else:
-        df = pd.read_csv(input_file, encoding='utf-8', on_bad_lines='skip')
-    
+def extract_lighthouse_scores(xlsx_file):
+    df = pd.read_excel(xlsx_file)
     columns = df.columns
     
-    # Create a new DataFrame with the first 7 columns (common metadata)
-    result_df = df.iloc[:, :7].copy() if len(columns) >= 7 else df.copy()
+    # Create a new DataFrame with the first 7 columns from the original DataFrame
+    result_df = df.iloc[:, :7].copy()
     
     # Dictionary to store unique titles and their scores
     title_scores = {}
@@ -35,7 +20,7 @@ def extract_lighthouse_scores(input_file):
                 # Extract the title (text before brackets) and score
                 match = re.search(r'(.*?)\s*\(Score: (.*?)\)', value)
                 if match:
-                    title = match.group(1).strip()  # Text before brackets
+                    title = match.group(1).strip()  # Text before brackets, stripped of whitespace
                     score = match.group(2)  # Score value
                     
                     # Initialize the scores list for this title if it doesn't exist
@@ -49,471 +34,114 @@ def extract_lighthouse_scores(input_file):
     for title, scores in title_scores.items():
         result_df[title] = scores
     
-    # Ensure core score columns exist
-    for col in ['Performance', 'Accessibility', 'Best Practices', 'SEO']:
-        if col not in result_df.columns:
-            print(f"Warning: {col} column not found in data")
-        else:
-            # Convert scores to numeric
-            result_df[col] = pd.to_numeric(result_df[col], errors='coerce')
-            # Cap scores at 100 (handle potential outliers)
-            if col == 'Accessibility':
-                outliers = result_df[result_df[col] > 100][col].tolist()
-                if outliers:
-                    print(f"Warning: Found {len(outliers)} outlier values in {col} column: {outliers[:5]}{' and more...' if len(outliers) > 5 else ''}")
-                    print("These values will be capped at 100.")
-                result_df[col] = result_df[col].apply(lambda x: min(x, 100) if pd.notna(x) else x)
-    
-    print(f"Extracted data with {len(result_df)} rows and {len(result_df.columns)} columns.")
     return result_df
 
-def clean_data(df):
+
+
+def clean_dataframe(df, threshold=0.3):
     """
-    Clean the extracted data with basic preprocessing steps.
+    Thoroughly clean DataFrame by removing columns with:
+    1. All zero values
+    2. Majority (>= 30%) None/NaN/empty values
+    3. Columns with no meaningful data
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        Input DataFrame to be cleaned
+    threshold : float, optional (default=0.3)
+        Threshold for percentage of invalid values to drop a column
+    
+    Returns:
+    --------
+    pandas.DataFrame
+        Cleaned DataFrame with problematic columns removed
     """
-    print("Cleaning data...")
+    # Create a copy of the DataFrame to avoid modifying the original
+    cleaned_df = df.copy()
     
-    # Remove any duplicate URLs
-    if 'URL' in df.columns:
-        df = df.drop_duplicates(subset=['URL'], keep='first')
+    # Comprehensive empty/invalid value check
+    def is_invalid(value):
+        # Check for None, NaN, zero, empty string, and whitespace-only string
+        if value is None:
+            return True
         
-        # Clean URL column
-        df['URL'] = df['URL'].str.strip()
+        # Check for numpy NaN
+        if pd.isna(value):
+            return True
         
-        # Extract domain names from URLs
-        df['Domain'] = df['URL'].apply(lambda url: url.split('//')[1].split('/')[0] if '//' in url else url.split('/')[0])
-    
-    # Add a column for Pass/Fail based on accessibility score (using 90% as threshold)
-    if 'Accessibility' in df.columns:
-        df['AccessibilityResult'] = df['Accessibility'].apply(lambda x: 'Pass' if x >= 90 else 'Fail')
-    
-    print(f"Data cleaned. {len(df)} rows after removing duplicates.")
-    return df
-
-def get_wcag_guideline(title):
-    """Map issues to WCAG guidelines."""
-    title_lower = title.lower()
-    
-    wcag_mapping = {
-        'contrast': '1.4.3 Contrast (Minimum)',
-        'color': '1.4.1 Use of Color',
-        'aria': '4.1.2 Name, Role, Value',
-        'landmark': '1.3.1 Info and Relationships',
-        'heading': '2.4.6 Headings and Labels',
-        'alt': '1.1.1 Non-text Content',
-        'keyboard': '2.1.1 Keyboard',
-        'focus': '2.4.7 Focus Visible',
-        'language': '3.1.1 Language of Page',
-        'link': '2.4.4 Link Purpose',
-        'button': '4.1.2 Name, Role, Value',
-        'form': '3.3.2 Labels or Instructions'
-    }
-    
-    for key, guideline in wcag_mapping.items():
-        if key in title_lower:
-            return guideline
-    return 'Other WCAG Guidelines'
-
-def determine_impact(title, severity):
-    """Determine the impact level of an issue."""
-    title_lower = title.lower()
-    
-    # Critical functionality impact
-    if any(word in title_lower for word in ['button', 'form', 'submit', 'input', 'navigation']):
-        return 'Critical - Affects Core Functionality'
-    
-    # User experience impact
-    if any(word in title_lower for word in ['keyboard', 'focus', 'tab', 'aria']):
-        return 'High - Affects User Experience'
-    
-    # Content understanding impact
-    if any(word in title_lower for word in ['heading', 'alt', 'language', 'contrast']):
-        return 'Medium - Affects Content Understanding'
-    
-    # Visual/aesthetic impact
-    if any(word in title_lower for word in ['color', 'background']):
-        return 'Low - Affects Visual Presentation'
-    
-    return 'Unknown Impact'
-
-def get_priority_level(severity, impact):
-    """Determine priority level based on severity and impact."""
-    if severity == 'High' and 'Critical' in impact:
-        return 'P0 - Immediate Action Required'
-    elif severity == 'High' and 'High' in impact:
-        return 'P1 - High Priority'
-    elif severity == 'Medium' or ('High' in severity and 'Medium' in impact):
-        return 'P2 - Medium Priority'
-    elif severity == 'Low':
-        return 'P3 - Low Priority'
-    return 'P4 - To Be Evaluated'
-
-def categorize_issue(title):
-    """Categorize an issue based on its title and return detailed categorization."""
-    title_lower = title.lower()
-    
-    # Main category
-    if any(word in title_lower for word in ['color', 'contrast', 'background']):
-        main_category = 'color_contrast'
-        sub_category = 'visual_design'
-    elif 'aria' in title_lower:
-        main_category = 'aria'
-        if 'role' in title_lower:
-            sub_category = 'roles'
-        elif 'label' in title_lower:
-            sub_category = 'labels'
-        else:
-            sub_category = 'general'
-    elif any(word in title_lower for word in ['navigation', 'menu', 'landmark']):
-        main_category = 'navigation'
-        if 'landmark' in title_lower:
-            sub_category = 'landmarks'
-        elif 'menu' in title_lower:
-            sub_category = 'menus'
-        else:
-            sub_category = 'general'
-    elif any(word in title_lower for word in ['form', 'input', 'label', 'button']):
-        main_category = 'forms'
-        if 'label' in title_lower:
-            sub_category = 'labels'
-        elif 'input' in title_lower:
-            sub_category = 'inputs'
-        elif 'button' in title_lower:
-            sub_category = 'buttons'
-        else:
-            sub_category = 'general'
-    elif any(word in title_lower for word in ['image', 'img', 'alt']):
-        main_category = 'images'
-        if 'alt' in title_lower:
-            sub_category = 'alt_text'
-        else:
-            sub_category = 'general'
-    elif any(word in title_lower for word in ['link', 'href']):
-        main_category = 'links'
-        if 'name' in title_lower:
-            sub_category = 'names'
-        elif 'text' in title_lower:
-            sub_category = 'text'
-        else:
-            sub_category = 'general'
-    elif any(word in title_lower for word in ['heading', 'h1', 'h2', 'h3']):
-        main_category = 'headings'
-        if 'order' in title_lower:
-            sub_category = 'hierarchy'
-        else:
-            sub_category = 'general'
-    elif any(word in title_lower for word in ['keyboard', 'focus', 'tab']):
-        main_category = 'keyboard'
-        if 'focus' in title_lower:
-            sub_category = 'focus'
-        elif 'tab' in title_lower:
-            sub_category = 'tabbing'
-        else:
-            sub_category = 'general'
-    elif any(word in title_lower for word in ['language', 'lang']):
-        main_category = 'language'
-        sub_category = 'general'
-    else:
-        main_category = 'other'
-        sub_category = 'general'
-    
-    return main_category, sub_category
-
-def parse_issue(issue_text):
-    """Parse a single issue into its components with detailed recommendations."""
-    if not issue_text or not issue_text.strip():
-        return None
+        # Check for zero (including float and int zero)
+        if isinstance(value, (int, float)) and value == 0:
+            return True
         
-    # Extract components using regex - more flexible pattern
-    # This handles various formats like "Issue (Score: X)" or just "Issue"
-    pattern = r"(.*?)(?:\s*\(Score:\s*([\d.]+|N/A)\))?$"
-    match = re.match(pattern, issue_text.strip())
-    
-    if not match:
-        print(f"Warning: Could not parse issue text: {issue_text}")
-        return None
+        # Check for empty or whitespace-only string
+        if isinstance(value, str) and value.strip() == '':
+            return True
         
-    title = match.group(1).strip()
-    score = match.group(2) if match.group(2) else "N/A"
+        return False
     
-    # Determine severity based on score or keywords in title
-    severity = "Unknown"
-    try:
-        if score != "N/A":
-            score_num = float(score)
-            if score_num >= 0.8:
-                severity = 'Low'
-            elif score_num >= 0.5:
-                severity = 'Medium'
-            else:
-                severity = 'High'
-        else:
-            # Alternative: determine severity by keywords in title
-            title_lower = title.lower()
-            if any(word in title_lower for word in ['critical', 'severe', 'major', 'error']):
-                severity = 'High'
-            elif any(word in title_lower for word in ['important', 'moderate', 'warning']):
-                severity = 'Medium'
-            elif any(word in title_lower for word in ['minor', 'suggestion', 'info']):
-                severity = 'Low'
-    except:
-        # If all else fails, try to determine severity by keywords in the title
-        title_lower = title.lower()
-        if 'button' in title_lower or 'form' in title_lower or 'keyboard' in title_lower:
-            severity = 'High'
-        elif 'color' in title_lower or 'contrast' in title_lower:
-            severity = 'Medium'
+    # Identify columns to drop
+    columns_to_drop = []
     
-    # Get additional metadata
-    wcag = get_wcag_guideline(title)
-    impact = determine_impact(title, severity)
-    priority = get_priority_level(severity, impact)
+    for col in cleaned_df.columns:
+        # Convert the column to a series for easier manipulation
+        series = cleaned_df[col]
+        
+        # Calculate the percentage of invalid values
+        invalid_percentage = series.apply(is_invalid).mean()
+        
+        # Check if ALL values are zero
+        all_zero = (series.apply(lambda x: x == 0 if isinstance(x, (int, float)) else False)).all()
+        
+        # Add column to drop list if:
+        # 1. Over threshold of invalid values, or
+        # 2. All values are zero
+        if invalid_percentage >= threshold or all_zero:
+            columns_to_drop.append(col)
     
-    return {
-        'title': title,
-        'score': score,
-        'severity': severity,
-        'wcag_guideline': wcag,
-        'impact': impact,
-        'priority': priority
-    }
+    # Remove identified columns
+    cleaned_df.drop(columns=columns_to_drop, inplace=True)
+    
+    return cleaned_df
 
-def combine_issues_from_columns(df):
+
+def remove_bad_columns(df, threshold=0.3):
     """
-    Create a combined 'Accessibility Issues' column from individual issue columns
-    generated by Omar's extraction approach.
+    Remove columns where more than a specified threshold of values are 0, 'None', empty strings, or NaN/None.
+    
+    Parameters:
+    df (pd.DataFrame): Input DataFrame
+    threshold (float): Proportion threshold (default 0.5) for column removal
+    
+    Returns:
+    pd.DataFrame: DataFrame with qualifying columns removed
     """
-    print("Combining issues from individual columns...")
+    df_clean = df.copy()
+    cols_to_drop = []
     
-    # Skip base metadata columns
-    skip_cols = ['Rank', 'Title', 'URL', 'Performance', 'Accessibility', 'Best Practices', 
-                'SEO', 'Domain', 'AccessibilityResult']
-    
-    # Look for columns that represent specific accessibility issues
-    # These are typically columns beyond the basic metadata that contain scores
-    issue_columns = []
-    for col in df.columns:
-        if col not in skip_cols and col != 'Accessibility Issues':
-            # Check if this column contains any non-null values
-            if df[col].notna().any():
-                issue_columns.append(col)
-    
-    print(f"Found {len(issue_columns)} potential issue columns")
-    
-    # Create the combined issues column
-    df['Accessibility Issues'] = ""
-    
-    # Combine all issues, properly formatting each one
-    for idx, row in df.iterrows():
-        issues = []
-        for col in issue_columns:
-            if pd.notna(row[col]) and row[col]:
-                # Format as "Issue Name (Score: value)"
-                issues.append(f"{col} (Score: {row[col]})")
+    for col in df_clean.columns:
+        col_series = df_clean[col]
+        # Create boolean mask for bad values
+        bad_mask = (
+            (col_series == 0) | 
+            (col_series == 'None') | 
+            (col_series == '') | 
+            col_series.isna()
+        )
+        bad_count = bad_mask.sum()
         
-        if issues:
-            df.at[idx, 'Accessibility Issues'] = "; ".join(issues)
+        # Check if bad values exceed threshold
+        if (bad_count / len(col_series)) > threshold:
+            cols_to_drop.append(col)
     
-    # Count how many sites have issues
-    sites_with_issues = sum(df['Accessibility Issues'] != "")
-    print(f"Found {sites_with_issues} sites with accessibility issues")
-    
-    return df
-
-def analyze_issues(df):
-    """
-    Analyze the accessibility issues in the dataset.
-    """
-    print("Analyzing accessibility issues...")
-    
-    # Create columns for detailed analysis
-    all_categories = set()
-    processed_rows = []
-    
-    # Check if Accessibility Issues column exists or is empty
-    if 'Accessibility Issues' not in df.columns or df['Accessibility Issues'].str.strip().eq('').all():
-        print("Creating 'Accessibility Issues' column from individual columns...")
-        df = combine_issues_from_columns(df)
-    
-    # Check if we have any issues to analyze
-    if df['Accessibility Issues'].str.strip().eq('').all():
-        print("Warning: No accessibility issues found in the dataset.")
-        # Create placeholder issues for demonstration
-        placeholder_issues = [
-            "Background and foreground colors do not have a sufficient contrast ratio",
-            "Links do not have a discernible name",
-            "Image elements do not have `[alt]` attributes",
-            "Buttons do not have an accessible name",
-            "Heading elements are not in a sequentially-descending order",
-            "Form elements do not have associated labels",
-            "Interactive controls are not keyboard focusable",
-            "ARIA attributes are not used correctly",
-            "Page structure lacks proper landmark regions",
-            "Document language is not specified"
-        ]
-        print(f"Using {len(placeholder_issues)} placeholder issues for demonstration")
-        
-        # Assign random placeholder issues to each site
-        for idx in df.index:
-            # Assign 1-5 random issues to each site
-            num_issues = np.random.randint(1, 6)
-            selected_issues = np.random.choice(placeholder_issues, num_issues, replace=False)
-            df.at[idx, 'Accessibility Issues'] = "; ".join([f"{issue} (Score: {np.random.randint(10, 100)/100})" for issue in selected_issues])
-    
-    # Process each row
-    print("Processing accessibility issues for each site...")
-    for idx, row in df.iterrows():
-        issues_dict = segment_accessibility_issues(row['Accessibility Issues'])
-        formatted = format_detailed_issues(issues_dict)
-        all_categories.update(formatted.keys())
-        processed_rows.append(formatted)
-    
-    # Initialize all columns
-    print(f"Creating {len(all_categories)} category columns for analysis")
-    for category in all_categories:
-        df[f'Accessibility_{category}'] = ''
-    
-    # Fill in the data
-    for idx, formatted in enumerate(processed_rows):
-        for category in all_categories:
-            df.at[idx, f'Accessibility_{category}'] = formatted.get(category, '')
-    
-    # Add summary columns
-    df['Total_Issues'] = df['Accessibility Issues'].apply(lambda x: len(x.split(';')) if pd.notna(x) and x != '' else 0)
-    df['High_Severity_Issues'] = df.filter(like='Accessibility_').apply(
-        lambda x: sum('Severity: High' in str(val) for val in x), axis=1
-    )
-    df['P0_Issues'] = df.filter(like='_priority').apply(
-        lambda x: sum('P0' in str(val) for val in x), axis=1
-    )
-    
-    return df, all_categories
-
-def segment_accessibility_issues(issues_text):
-    """Enhanced segmentation of accessibility issues with detailed categorization."""
-    # Initialize categories with subcategories
-    categories = defaultdict(lambda: defaultdict(list))
-    
-    if pd.isna(issues_text) or issues_text == '':
-        return categories
-    
-    # Split issues by semicolon
-    issues = issues_text.split(';')
-    
-    for issue in issues:
-        parsed_issue = parse_issue(issue)
-        if not parsed_issue:
-            continue
-            
-        main_category, sub_category = categorize_issue(parsed_issue['title'])
-        categories[main_category][sub_category].append(parsed_issue)
-    
-    return categories
-
-def format_detailed_issues(issues_dict):
-    """Format issues with comprehensive details."""
-    formatted = defaultdict(lambda: defaultdict(str))
-    
-    for main_category, subcategories in issues_dict.items():
-        for sub_category, issues in subcategories.items():
-            base_key = f"{main_category}_{sub_category}"
-            
-            # Format different aspects of the issues
-            issues_text = []
-            wcag_guidelines = set()
-            priorities = []
-            
-            for issue in issues:
-                # Basic issue information
-                issues_text.append(f"{issue['title']} (Score: {issue['score']}, Severity: {issue['severity']})")
-                
-                # Collect metadata
-                wcag_guidelines.add(issue['wcag_guideline'])
-                priorities.append(issue['priority'])
-            
-            # Store different aspects in the formatted dictionary
-            formatted[f"{base_key}_details"] = '; '.join(issues_text)
-            formatted[f"{base_key}_wcag"] = '; '.join(sorted(wcag_guidelines))
-            formatted[f"{base_key}_priority"] = '; '.join(sorted(set(priorities)))
-    
-    return formatted
-
-def find_latest_file(pattern):
-    """Find the most recent file matching the pattern."""
-    files = glob.glob(pattern)
-    if not files:
-        return None
-    return max(files, key=os.path.getmtime)
-
-def main():
-    # Find the most recent source file
-    source_files = glob.glob('lighthouse_*.xlsx') + glob.glob('lighthouse_*.csv')
-    
-    if not source_files:
-        print("Error: No lighthouse data files found.")
-        return
-        
-    input_file = max(source_files, key=os.path.getmtime)
-    print(f"Using most recent data file: {input_file}")
-    
-    # Extract scores using Omar's approach
-    df = extract_lighthouse_scores(input_file)
-    
-    # Clean the data
-    df = clean_data(df)
-    
-    # Analyze issues
-    df, all_categories = analyze_issues(df)
-    
-    # Generate output filename with timestamp
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_file = f'lighthouse_results_detailed_{timestamp}.csv'
-    
-    # Save the processed data
-    print(f"Saving detailed results to {output_file}...")
-    df.to_csv(output_file, index=False)
-    excel_output = output_file.replace('.csv', '.xlsx')
-    df.to_excel(excel_output, index=False)
-    print(f"Also saved to Excel format: {excel_output}")
-    
-    # Generate summary statistics
-    print("\nAnalysis Summary:")
-    print(f"Total URLs processed: {len(df)}")
-    print(f"Total categories identified: {len(all_categories)}")
-    
-    # Severity distribution
-    if 'High_Severity_Issues' in df.columns:
-        print("\nSeverity Distribution:")
-        severity_counts = {
-            'High': df['High_Severity_Issues'].sum(),
-            'P0': df['P0_Issues'].sum(),
-            'Total': df['Total_Issues'].sum()
-        }
-        for severity, count in severity_counts.items():
-            print(f"- {severity}: {count}")
-    
-    # Average accessibility score
-    if 'Accessibility' in df.columns:
-        print(f"\nAverage Accessibility Score: {df['Accessibility'].mean():.1f}")
-        print(f"Sites passing accessibility (≥90): {len(df[df['Accessibility'] >= 90])} ({len(df[df['Accessibility'] >= 90])/len(df)*100:.1f}%)")
-    
-    # WCAG compliance summary
-    wcag_columns = [col for col in df.columns if '_wcag' in col]
-    all_wcag = set()
-    for col in wcag_columns:
-        all_wcag.update([
-            guideline.strip() 
-            for guidelines in df[col].dropna() 
-            for guideline in guidelines.split(';')
-        ])
-    
-    if all_wcag:
-        print("\nWCAG Guidelines Coverage:")
-        for guideline in sorted(all_wcag):
-            print(f"- {guideline}")
-    
-    print("\nData processing completed!")
-    print(f"Use the output file {output_file} or {excel_output} for further analysis.")
-
+    return df_clean.drop(columns=cols_to_drop)
 if __name__ == "__main__":
-    main() 
+    input_file = "lighthouse_results - organiszed.xlsx"
+    
+    result_df = extract_lighthouse_scores(input_file)
+    clean_df = remove_bad_columns(result_df)
+    current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # Format: YYYY-MM-DD_HH-MM-SS
+    filename = f"lighthouse_scores_extracted_{current_time}.xlsx"
+
+    clean_df.to_excel(filename, index=False)
+        
