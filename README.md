@@ -71,3 +71,7 @@ python analytics_and_eda.py
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contact
+
+For any questions and collaborative opportunities please @Trista1208
