@@ -16,8 +16,7 @@ plt.rcParams['figure.dpi'] = 100
 plt.rcParams['savefig.dpi'] = 300
 
 # Create output directory for visualization
-timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-output_dir = f"accessibility_analysis_{timestamp}"
+output_dir = "final_accessibility_analysis"
 os.makedirs(output_dir, exist_ok=True)
 
 def load_data(file_path='lighthouse_scores_optimized.xlsx'):

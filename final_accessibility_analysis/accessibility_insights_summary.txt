@@ -20,7 +20,7 @@ RECOMMENDATIONS:
 
 
 ANALYSIS SUMMARY:
-- Total websites analyzed: 99
-- Websites passing accessibility standards: 45 (45.5%)
+- Total websites analyzed: 92
+- Websites passing accessibility standards: 45 (48.9%)
 - Average accessibility score: 88.1/100
-- Average number of issues per site: 9.6
+- Average number of issues per site: 10.3
