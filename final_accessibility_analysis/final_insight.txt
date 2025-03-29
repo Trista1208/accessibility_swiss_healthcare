@@ -35,6 +35,13 @@ This analysis evaluated the accessibility of 99 healthcare websites in Switzerla
    - Legacy JavaScript usage (62 instances)
    - Missing image dimensions (61 instances)
 
+5. **Keyboard Focus Accessibility**:
+   - Keyboard focus accessibility testing is severely lacking, with only 2% of sites tested
+   - Of the sites tested, 0% passed keyboard focus accessibility criteria
+   - 2 websites failed the "Skip links are not focusable" criterion
+   - Most keyboard focus accessibility tests were not conducted on the sites
+   - This represents a significant blind spot in accessibility testing
+
 ## RECOMMENDATIONS
 
 1. **Prioritize Critical Issues**: Focus on fixing the most common accessibility issues, particularly those affecting core functionality (Time to Interactive, First Contentful Paint).
@@ -50,7 +57,13 @@ This analysis evaluated the accessibility of 99 healthcare websites in Switzerla
    - Reducing unused code (CSS/JavaScript)
    - Optimizing responsive image delivery
 
-5. **Training & Standards**: Provide accessibility training for development teams and establish consistent accessibility patterns across websites.
+5. **Expand Keyboard Accessibility Testing**: 
+   - Significantly increase testing coverage for keyboard focus accessibility
+   - Ensure all interactive elements are keyboard accessible
+   - Test focus management and visibility for all user interfaces
+   - Verify skip links are properly implemented for keyboard users
+
+6. **Training & Standards**: Provide accessibility training for development teams and establish consistent accessibility patterns across websites.
 
 ## IMPACT OF ACCESSIBILITY IMPROVEMENTS
 
@@ -71,6 +84,7 @@ This analysis evaluated the accessibility of 99 healthcare websites in Switzerla
 3. Establish accessibility guidelines for future development
 4. Implement regular monitoring to track improvements
 5. Conduct more in-depth testing of the lowest-performing domains
+6. Initiate comprehensive keyboard accessibility testing for all websites
 
 =======================================================
 Report generated on: March 29, 2025
