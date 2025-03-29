@@ -220,6 +220,97 @@ def analyze_accessibility_issues(df):
     
     return issue_counts if 'issue_counts' in locals() else None
 
+def analyze_keyboard_focus_accessibility(df):
+    """Analyze keyboard focus accessibility issues specifically"""
+    print("\n===== KEYBOARD FOCUS ACCESSIBILITY ANALYSIS =====")
+    
+    # Find keyboard and focus related columns
+    keyboard_focus_cols = [col for col in df.columns if 'keyboard' in str(col).lower() or 'focus' in str(col).lower()]
+    
+    if not keyboard_focus_cols:
+        print("No keyboard focus related columns found in the dataset.")
+        return None
+    
+    print(f"\nFound {len(keyboard_focus_cols)} keyboard/focus related columns:")
+    for idx, col in enumerate(keyboard_focus_cols):
+        print(f"{idx+1}. {col}")
+    
+    # Preprocess the columns to handle missing and non-standard values
+    df_processed = df.copy()
+    
+    for col in keyboard_focus_cols:
+        # Convert NaN to 'Not Tested'
+        df_processed[col] = df_processed[col].fillna('Not Tested')
+        
+        # Convert 0.0 values to 'Fail'
+        if df_processed[col].astype(str).isin(['0.0', '0']).any():
+            df_processed[col] = df_processed[col].astype(str).replace({'0.0': 'Fail', '0': 'Fail'})
+        
+        # Convert 1.0 values to 'Pass'
+        if df_processed[col].astype(str).isin(['1.0', '1']).any():
+            df_processed[col] = df_processed[col].astype(str).replace({'1.0': 'Pass', '1': 'Pass'})
+    
+    # Analyze each keyboard focus column
+    summary_data = []
+    
+    for col in keyboard_focus_cols:
+        print(f"\n{col}:")
+        # Get value counts
+        value_counts = df_processed[col].value_counts(dropna=False)
+        print(value_counts)
+        
+        # Calculate statistics for tested sites (excluding 'Not Tested')
+        tested_df = df_processed[df_processed[col] != 'Not Tested']
+        tested_count = len(tested_df)
+        
+        if tested_count > 0:
+            pass_count = (tested_df[col] == 'Pass').sum()
+            fail_count = (tested_df[col] == 'Fail').sum()
+            
+            # Calculate pass rate among tested sites
+            pass_rate = pass_count / tested_count * 100 if tested_count > 0 else 0
+            print(f"Tested sites: {tested_count} out of {len(df)} ({tested_count/len(df)*100:.1f}%)")
+            print(f"Pass rate: {pass_rate:.1f}% ({pass_count} out of {tested_count} tested sites)")
+            
+            # Add to summary data
+            summary_data.append({
+                'Criterion': col,
+                'Pass Count': pass_count,
+                'Fail Count': fail_count,
+                'Not Tested Count': len(df) - tested_count,
+                'Total Tested': tested_count,
+                'Pass Rate (%)': pass_rate,
+                'Coverage (%)': tested_count / len(df) * 100
+            })
+    
+    # Create summary dataframe if we have data
+    if summary_data:
+        summary_df = pd.DataFrame(summary_data)
+        
+        # Check if we have any tested sites
+        has_tested_data = (summary_df['Total Tested'].sum() > 0)
+        
+        if has_tested_data:
+            # Calculate overall keyboard focus score
+            if len(summary_df) > 0:
+                avg_pass_rate = summary_df['Pass Rate (%)'].mean()
+                print(f"\nOverall keyboard focus accessibility score: {avg_pass_rate:.1f}%")
+                
+                # Calculate percentage of sites with at least one keyboard focus issue
+                sites_with_any_issue = df_processed[df_processed[keyboard_focus_cols].eq('Fail').any(axis=1)]
+                issue_count = len(sites_with_any_issue)
+                
+                if issue_count > 0:
+                    print(f"Sites with at least one keyboard focus issue: {issue_count} ({issue_count/len(df)*100:.1f}%)")
+                
+                # Calculate testing coverage
+                avg_coverage = summary_df['Coverage (%)'].mean()
+                print(f"Average testing coverage for keyboard focus criteria: {avg_coverage:.1f}%")
+        else:
+            print("\nNo keyboard focus accessibility data available for analysis. Most sites were not tested for these criteria.")
+    
+    return summary_data
+
 def create_accessibility_dashboard(df):
     """Create a comprehensive dashboard of accessibility metrics"""
     print("\n===== CREATING ACCESSIBILITY DASHBOARD =====")
@@ -500,37 +591,25 @@ Analysis based on Lighthouse audits of {len(df)} Swiss healthcare websites
     return summary
 
 def main():
-    """Main function to run the entire analysis pipeline"""
-    print("Starting Healthcare Accessibility Analytics and EDA...")
-    print(f"Results will be saved to directory: {output_dir}")
-    
-    # Load the data
+    """Main function to run all analyses"""
+    # Load data
     df = load_data()
     
-    # Run analysis components
+    # Run analyses
     score_stats, pass_rates = analyze_scores(df)
     domain_scores = analyze_domains(df)
     issue_counts = analyze_accessibility_issues(df)
+    keyboard_focus_results = analyze_keyboard_focus_accessibility(df)
     
-    # Create comprehensive dashboard
+    # Create dashboard visualization
     create_accessibility_dashboard(df)
     
     # Generate insights
     insights, insights_text = generate_insights(df, score_stats, domain_scores, issue_counts)
+    print("\n".join(insights))
     
-    # Create comprehensive insights summary
-    comprehensive_summary = create_comprehensive_insights_summary(df, score_stats, domain_scores, issue_counts, pass_rates)
-    
-    # Copy any existing insights_summary.txt to the output directory
-    if os.path.exists("insights_summary.txt") and "insights_summary.txt" != output_dir:
-        try:
-            shutil.copy("insights_summary.txt", os.path.join(output_dir, "original_insights_summary.txt"))
-            print(f"Copied existing insights_summary.txt to {output_dir}/original_insights_summary.txt")
-        except:
-            pass
-    
-    print(f"\nAnalysis complete! All outputs saved to {output_dir}/")
-    print("Open the insights_summary.txt file for a comprehensive overview of findings.")
+    # Create comprehensive insights file
+    create_comprehensive_insights_summary(df, score_stats, domain_scores, issue_counts, pass_rates)
 
 if __name__ == "__main__":
     main() 
