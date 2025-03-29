@@ -1,99 +1,70 @@
-# HEALTHCARE WEBSITE ACCESSIBILITY ANALYSIS INSIGHTS
-=======================================================
+# SWISS HEALTHCARE WEBSITE ACCESSIBILITY INSIGHTS
+==================================================
 
-## EXECUTIVE SUMMARY
+## OVERVIEW
 
-This analysis evaluated the accessibility of 99 healthcare websites in Switzerland using Lighthouse metrics. 
-Overall, Swiss healthcare websites show moderate accessibility compliance, with significant room for improvement.
+This document presents a comprehensive analysis of web accessibility for Swiss healthcare websites based on Google Lighthouse audits. The analysis included 92 websites after excluding 7 websites that were PDFs or non-HTML content that couldn't be properly analyzed by the Lighthouse tool.
 
-## KEY FINDINGS
+## KEY ACCESSIBILITY FINDINGS
 
-1. Only 45.5% of analyzed healthcare websites pass accessibility standards (score ≥90)
-2. The average accessibility score is 88.1/100
-3. Websites have an average of 9.6 accessibility issues per site
-4. There is a 41.0-point difference between the best and worst performing domains
-5. Only 7.1% of sites have no detected accessibility issues
-6. Performance metrics are also problematic, with only 6.1% of sites passing performance standards
-7. Best Practices (58.6% pass) and SEO (57.6% pass) have better compliance rates
+1. **Accessibility Compliance**: Only 48.9% of healthcare websites pass accessibility standards (score ≥90/100).
 
-## MOST COMMON ACCESSIBILITY ISSUES
+2. **Average Performance**:
+   - Average accessibility score: 88.1/100
+   - Average number of accessibility issues: 10.3 per site
 
-1. Time to Interactive (86 instances)
-2. Serve static assets with an efficient cache policy (86 instances)
-3. Speed Index (85 instances)
-4. First Contentful Paint (81 instances)
-5. Avoid serving legacy JavaScript to modern browsers (62 instances)
-6. Image elements do not have explicit `width` and `height` (61 instances)
-7. Max Potential First Input Delay (54 instances)
-8. Improve image delivery (50 instances)
-9. Largest Contentful Paint (44 instances)
-10. Ensure text remains visible during webfont load (43 instances)
+3. **Domain Performance Discrepancy**:
+   - 41.0-point gap between best and worst domains
+   - No websites were found to have zero accessibility issues
 
-## DOMAIN ANALYSIS
+4. **Top Accessibility Issues**:
+   - Time to Interactive (86 sites)
+   - Serve static assets with an efficient cache policy (86 sites)
+   - Speed Index (85 sites)
+   - First Contentful Paint (81 sites)
+   - Legacy JavaScript usage (62 sites)
+   - Missing image dimensions (61 sites)
 
-The analysis revealed significant variations in accessibility scores across domains, with the lowest-scoring domains being:
-- www.lucernehealth.com: 59.0
-- boris.unibe.ch: 65.0
-- www.chuv.ch: 70.0
-- www.pwc.ch: 71.0
-- www.clinic-badragaz.ch: 75.0
+5. **Keyboard Accessibility**:
+   - Only 2.2% of sites were tested for keyboard focus accessibility
+   - 0% pass rate among tested sites for keyboard focus criteria
+   - Most keyboard focus issues were not tested, representing a significant gap
+
+6. **Performance Metrics**:
+   - Performance: Only 6.5% pass rate
+   - Best Practices: 63.0% pass rate
+   - SEO: 62.0% pass rate
 
 ## RECOMMENDATIONS
 
-1. **Prioritize Critical Issues**: Focus on fixing the most common accessibility issues identified in this analysis, particularly those that affect core functionality (Time to Interactive, First Contentful Paint).
+1. **Critical Improvements**:
+   - Fix performance issues like Time to Interactive and First Contentful Paint
+   - Add explicit image dimensions
+   - Implement efficient caching policies
+   - Optimize JavaScript loading and execution
 
-2. **Implement Regular Audits**: Establish regular accessibility testing as part of the development and maintenance process. Automated tools combined with manual testing provide the most comprehensive approach.
+2. **Accessibility Standards**:
+   - Adopt and adhere to WCAG 2.1 AA standards
+   - Implement accessibility testing in the development lifecycle
+   - Provide accessibility training for development teams
 
-3. **Adopt WCAG Standards**: Focus on meeting Web Content Accessibility Guidelines (WCAG) 2.1 AA standards, which are recognized internationally as the benchmark for web accessibility.
+3. **Targeted Testing**:
+   - Increase testing coverage for keyboard focus accessibility
+   - Ensure all interactive elements are keyboard accessible
+   - Test with assistive technologies
 
-4. **Training**: Provide accessibility training for web development, design, and content teams to ensure awareness of accessibility requirements during the creation process rather than retrofitting later.
+4. **Monitoring & Maintenance**:
+   - Implement regular accessibility audits
+   - Set benchmarks for improvement over time
+   - Include user testing with people with disabilities
 
-5. **User Testing**: Conduct testing with real users who have disabilities to identify practical accessibility barriers that automated tools might miss.
+## METHODOLOGY NOTE
 
-6. **Performance Optimization**: Improve Time to Interactive and First Contentful Paint metrics by optimizing JavaScript loading, reducing server response times, and implementing efficient caching policies.
+7 websites were excluded from the analysis because they were PDFs or non-HTML content that couldn't be properly analyzed by the Lighthouse tool. The excluded domains were: cds.cern.ch, smw.ch, cioms.ch, www.lausanneuniversityhospital.com, news.microsoft.com, www.samw.ch, and www.dignitas.ch. The final analysis was conducted on the remaining 92 websites.
 
-7. **Image Optimization**: Ensure all images have explicit width and height attributes to reduce layout shifts and improve user experience.
+## CONCLUSION
 
-8. **Standardize Implementation**: Develop accessibility standards and patterns for common website elements to ensure consistency across the website.
+The accessibility of Swiss healthcare websites needs significant improvement. With less than half meeting basic accessibility standards, there is a clear need for healthcare providers to address these issues. Improving accessibility will ensure that all users, including those with disabilities, have equal access to important healthcare information and services.
 
-## IMPACT OF ACCESSIBILITY IMPROVEMENTS
-
-Improving website accessibility in the healthcare sector has significant benefits:
-
-1. **Broader Reach**: Approximately 1 in 5 people have some form of disability. Accessible websites ensure healthcare information reaches all potential patients.
-
-2. **Legal Compliance**: Many jurisdictions require websites to meet certain accessibility standards, reducing legal risk.
-
-3. **Better User Experience**: Accessibility improvements benefit all users, not just those with disabilities.
-
-4. **Improved SEO**: Many accessibility practices also improve search engine rankings.
-
-5. **Ethical Responsibility**: Healthcare providers have a particular obligation to ensure equal access to health information.
-
-## NEXT STEPS
-
-1. Share these findings with stakeholders and website owners
-2. Develop a prioritized remediation plan focusing on the most critical issues
-3. Establish accessibility guidelines for future development
-4. Implement regular monitoring to track improvements
-5. Conduct more in-depth testing of the lowest-performing domains
-
-## METHODOLOGY
-
-This analysis was conducted using Google Lighthouse accessibility audits on healthcare websites in Switzerland. 
-Data was collected and processed through automated scripts, with missing or invalid data appropriately handled. 
-The analysis focused on four key metrics: Performance, Accessibility, Best Practices, and SEO.
-
-## VISUALIZATIONS
-
-The following visualizations were generated as part of this analysis:
-
-1. **Accessibility Dashboard**: Comprehensive overview of key metrics
-2. **Score Distributions**: Distribution of Performance, Accessibility, Best Practices, and SEO scores
-3. **Common Issues**: The most frequently encountered accessibility issues
-4. **Pass/Fail Distribution**: Proportion of websites passing accessibility standards
-5. **Accessibility vs. Issues**: Relationship between accessibility scores and number of issues
-
-=======================================================
-Report generated on: {datetime.now().strftime('%B %d, %Y')}
-Analysis based on Lighthouse audits of {len(df)} Swiss healthcare websites
+==================================================
+Report Date: March 29, 2025

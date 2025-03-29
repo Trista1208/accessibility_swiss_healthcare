@@ -591,25 +591,39 @@ Analysis based on Lighthouse audits of {len(df)} Swiss healthcare websites
     return summary
 
 def main():
-    """Main function to run all analyses"""
+    """Main function to execute accessibility analysis"""
     # Load data
     df = load_data()
+    print(f"Data loaded: {df.shape[0]} rows and {df.shape[1]} columns")
     
-    # Run analyses
-    score_stats, pass_rates = analyze_scores(df)
-    domain_scores = analyze_domains(df)
-    issue_counts = analyze_accessibility_issues(df)
-    keyboard_focus_results = analyze_keyboard_focus_accessibility(df)
+    # Filter out records with missing scores - these are likely PDFs or non-HTML content
+    original_count = len(df)
+    df_filtered = df.dropna(subset=['Accessibility_Score', 'Performance_Score', 'Best_Practices_Score', 'SEO_Score'], how='any')
+    excluded_count = original_count - len(df_filtered)
+    
+    if excluded_count > 0:
+        print(f"\nExcluded {excluded_count} websites with missing scores (likely PDFs or non-HTML content).")
+        print(f"Continuing analysis with {len(df_filtered)} websites.")
+        
+        # Show domains of excluded websites
+        excluded_domains = df[df['Accessibility_Score'].isna()]['Domain'].tolist()
+        print(f"Excluded domains: {', '.join(excluded_domains)}")
+    
+    # Run analyses on filtered data
+    score_stats, pass_rates = analyze_scores(df_filtered)
+    domain_scores = analyze_domains(df_filtered)
+    issue_counts = analyze_accessibility_issues(df_filtered)
+    keyboard_focus_results = analyze_keyboard_focus_accessibility(df_filtered)
     
     # Create dashboard visualization
-    create_accessibility_dashboard(df)
+    create_accessibility_dashboard(df_filtered)
     
     # Generate insights
-    insights, insights_text = generate_insights(df, score_stats, domain_scores, issue_counts)
+    insights, insights_text = generate_insights(df_filtered, score_stats, domain_scores, issue_counts)
     print("\n".join(insights))
     
     # Create comprehensive insights file
-    create_comprehensive_insights_summary(df, score_stats, domain_scores, issue_counts, pass_rates)
+    create_comprehensive_insights_summary(df_filtered, score_stats, domain_scores, issue_counts, pass_rates)
 
 if __name__ == "__main__":
     main() 
