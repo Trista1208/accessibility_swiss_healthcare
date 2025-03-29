@@ -17,21 +17,30 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
     
     print(f"Original data shape: {df.shape}")
     
-    # Step 1: Remove columns with too many empty values
+    # Step 1: Identify keyboard and focus related columns to preserve
+    keyboard_focus_cols = [col for col in df.columns if 'keyboard' in str(col).lower() or 'focus' in str(col).lower()]
+    print(f"Found {len(keyboard_focus_cols)} keyboard/focus related columns to preserve:")
+    for col in keyboard_focus_cols:
+        print(f"  - {col}")
+    
+    # Step 2: Remove columns with too many empty values, but preserve keyboard/focus columns
     empty_ratios = df.isna().mean()
-    cols_to_keep = empty_ratios[empty_ratios < threshold_empty].index.tolist()
+    
+    # Columns to keep: either has low percentage of missing values OR is a keyboard/focus column
+    cols_to_keep = [col for col in df.columns if (empty_ratios[col] < threshold_empty) or (col in keyboard_focus_cols)]
+    
     df_cleaned = df[cols_to_keep].copy()
     
     print(f"After removing sparse columns: {df_cleaned.shape}")
     print(f"Removed {df.shape[1] - df_cleaned.shape[1]} columns with over {threshold_empty*100}% empty values")
     
-    # Step 2: Remove duplicate rows based on URL if present
+    # Step 3: Remove duplicate rows based on URL if present
     if 'URL' in df_cleaned.columns:
         before_dedup = len(df_cleaned)
         df_cleaned = df_cleaned.drop_duplicates(subset=['URL'], keep='first')
         print(f"Removed {before_dedup - len(df_cleaned)} duplicate URLs")
     
-    # Step 3: Clean score columns and ensure proper format
+    # Step 4: Clean score columns and ensure proper format
     score_columns = [col for col in df_cleaned.columns if col in ['Performance', 'Accessibility', 'Best Practices', 'SEO']]
     for col in score_columns:
         if col in df_cleaned.columns:
@@ -40,18 +49,18 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
             # Cap values at 100
             df_cleaned[col] = df_cleaned[col].apply(lambda x: min(x, 100) if pd.notna(x) else x)
     
-    # Step 4: Create accessibility-specific columns if not present
+    # Step 5: Create accessibility-specific columns if not present
     if 'Accessibility' in df_cleaned.columns:
         df_cleaned['AccessibilityResult'] = df_cleaned['Accessibility'].apply(lambda x: 'Pass' if x >= 90 else 'Fail')
     
-    # Step 5: Extract domain names from URLs for easier analysis
+    # Step 6: Extract domain names from URLs for easier analysis
     if 'URL' in df_cleaned.columns and 'Domain' not in df_cleaned.columns:
         df_cleaned['Domain'] = df_cleaned['URL'].apply(
             lambda url: url.split('//')[1].split('/')[0] if pd.notna(url) and '//' in url else 
                         (url.split('/')[0] if pd.notna(url) else np.nan)
         )
     
-    # Step 6: Restructure accessibility issues for better analysis
+    # Step 7: Restructure accessibility issues for better analysis
     # Identify issue columns - these are columns beyond the basic metadata that contain scores or issue information
     issue_columns = []
     issue_text_present = False
@@ -63,7 +72,7 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
         # Look for columns that might represent specific accessibility issues
         for col in df_cleaned.columns:
             if col not in ['Rank', 'Title', 'URL', 'Performance', 'Accessibility', 'Best Practices', 
-                           'SEO', 'Domain', 'AccessibilityResult']:
+                           'SEO', 'Domain', 'AccessibilityResult'] + keyboard_focus_cols:
                 if df_cleaned[col].notna().any():
                     issue_columns.append(col)
         
@@ -84,13 +93,13 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
             
             issue_text_present = True
     
-    # Step 7: Add summary columns for issue counts
+    # Step 8: Add summary columns for issue counts
     if issue_text_present:
         df_cleaned['Total_Issues'] = df_cleaned['Accessibility Issues'].apply(
             lambda x: len(str(x).split(';')) if pd.notna(x) and x != '' else 0
         )
     
-    # Step 8: Select and rename only the most important columns
+    # Step 9: Select and rename only the most important columns
     # Define core columns to keep
     core_columns = [
         'Rank', 'Title', 'URL', 'Domain', 
@@ -102,7 +111,10 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
     if 'Accessibility Issues' in df_cleaned.columns:
         core_columns.append('Accessibility Issues')
     
-    # Add up to 10 most common accessibility issue columns
+    # Add keyboard focus columns
+    core_columns.extend(keyboard_focus_cols)
+    
+    # Add up to 10 most common accessibility issue columns that aren't already in core columns
     accessibility_issue_cols = []
     for col in df_cleaned.columns:
         if col not in core_columns and df_cleaned[col].notna().mean() > 0.1:  # Column has values in at least 10% of rows
@@ -119,7 +131,7 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
     # Keep only selected columns
     df_final = df_cleaned[columns_to_keep].copy()
     
-    # Step 9: Create readable column names and rename non-descriptive ones
+    # Step 10: Create readable column names and rename non-descriptive ones
     columns_mapping = {
         'Performance': 'Performance_Score',
         'Accessibility': 'Accessibility_Score',
@@ -129,9 +141,17 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
         'Total_Issues': 'Accessibility_Issues_Count'
     }
     
+    # Add mappings for keyboard focus columns
+    for col in keyboard_focus_cols:
+        if col in df_final.columns:
+            clean_name = col.replace('.', '')
+            # Convert the keyboard focus column names to be more consistent
+            clean_name = f"Accessibility_Keyboard_Focus_{clean_name.replace(' ', '_').replace('-', '_')}"
+            columns_mapping[col] = clean_name
+    
     # Add mappings for accessibility issue columns
     for col in top_issue_cols:
-        if col in df_final.columns:
+        if col in df_final.columns and col not in keyboard_focus_cols:
             # Clean up column name to be more readable
             clean_name = col.replace('.', '')
             # Convert to title case and add prefix if needed
@@ -143,13 +163,21 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
     # Apply column renaming
     df_final = df_final.rename(columns=columns_mapping)
     
-    # Step 10: Remove columns with all zeros or insignificant variance
+    # Step 11: Remove columns with all zeros or insignificant variance, but KEEP keyboard focus columns
+    keyboard_focus_renamed = [columns_mapping.get(col, col) for col in keyboard_focus_cols if col in df_final.columns]
+    
+    # Print keyboard focus columns after renaming for tracking
+    print("\nKeyboard focus columns after renaming:")
+    for col in keyboard_focus_renamed:
+        print(f"  - {col}")
+    
+    # Mark columns to drop, EXCLUDING keyboard focus columns
     cols_to_drop = []
     
     for col in df_final.columns:
-        # Skip non-numeric columns and essential metadata columns
-        essential_cols = ['Rank', 'Title', 'URL', 'Domain', 'AccessibilityResult']
-        if col in essential_cols or not pd.api.types.is_numeric_dtype(df_final[col]):
+        # Skip non-numeric columns, essential metadata columns, and keyboard/focus columns
+        essential_cols = ['Rank', 'Title', 'URL', 'Domain', 'AccessibilityResult'] + keyboard_focus_renamed
+        if col in essential_cols or col in keyboard_focus_renamed or not pd.api.types.is_numeric_dtype(df_final[col]):
             continue
             
         # Check for all zeros
@@ -174,17 +202,42 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
         if mean > 0 and std/mean < 0.01:  # Coefficient of variation < 1%
             cols_to_drop.append((col, "minimal variance"))
     
-    # Drop identified columns
-    if cols_to_drop:
-        print("\nRemoving columns with insignificant data:")
-        for col, reason in cols_to_drop:
-            print(f"  - {col}: {reason}")
+    # Print identified columns to drop but clearly indicate keyboard focus columns will be preserved
+    print("\nIdentified columns with insignificant data:")
+    for col, reason in cols_to_drop:
+        print(f"  - {col}: {reason}")
+    
+    # Print keyboard focus column statistics
+    print("\nKeyboard focus column statistics (these columns will be preserved regardless of variance):")
+    for col in keyboard_focus_cols:
+        if col in df_cleaned.columns:
+            # Get column stats
+            values_count = df_cleaned[col].value_counts(dropna=False)
+            print(f"  - {col}:")
+            print(f"    Values: {values_count.to_dict()}")
+    
+    # Drop identified columns, carefully excluding keyboard focus columns
+    cols_to_actually_drop = [col for col, _ in cols_to_drop if col not in keyboard_focus_renamed]
+    
+    if cols_to_actually_drop:
+        print(f"\nRemoving {len(cols_to_actually_drop)} columns with insignificant data (preserving keyboard focus columns):")
+        for col in cols_to_actually_drop:
+            print(f"  - {col}")
         
-        df_final = df_final.drop([col for col, _ in cols_to_drop], axis=1)
+        df_final = df_final.drop(cols_to_actually_drop, axis=1)
+    
+    # Make sure keyboard focus columns are kept even after the drop operation
+    for col in keyboard_focus_cols:
+        # Get the renamed column name
+        renamed_col = columns_mapping.get(col, col)
+        # If the column was dropped despite our checks, put it back
+        if renamed_col not in df_final.columns and col in df_cleaned.columns:
+            print(f"Restoring accidentally dropped column: {renamed_col}")
+            df_final[renamed_col] = df_cleaned[col]
     
     # Generate output filename with timestamp
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_file = f'lighthouse_scores_optimized_{timestamp}.xlsx'
+    output_file = 'lighthouse_scores_optimized.xlsx'
     
     # Save the cleaned data
     print(f"Saving optimized data to {output_file}...")
@@ -194,16 +247,20 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
     summary_cols = ['Rank', 'Title', 'URL', 'Domain', 
                    'Performance_Score', 'Accessibility_Score', 'Best_Practices_Score', 'SEO_Score',
                    'AccessibilityResult', 'Accessibility_Issues_Count']
+    
+    # Add keyboard focus columns to summary
+    summary_cols.extend(keyboard_focus_renamed)
+    
     summary_cols = [col for col in summary_cols if col in df_final.columns]
     
     df_summary = df_final[summary_cols].copy()
     
-    # Also check the summary file for zero or near-zero columns
+    # Also check the summary file for zero or near-zero columns, but preserve keyboard focus columns
     summary_cols_to_drop = []
     for col in df_summary.columns:
-        # Skip non-numeric columns and essential metadata columns
-        essential_cols = ['Rank', 'Title', 'URL', 'Domain', 'AccessibilityResult']
-        if col in essential_cols or not pd.api.types.is_numeric_dtype(df_summary[col]):
+        # Skip non-numeric columns, essential metadata columns, and keyboard focus columns
+        essential_cols = ['Rank', 'Title', 'URL', 'Domain', 'AccessibilityResult'] + keyboard_focus_renamed
+        if col in essential_cols or not pd.api.types.is_numeric_dtype(df_summary[col]) or col in keyboard_focus_renamed:
             continue
             
         # Check for all zeros
@@ -224,7 +281,7 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
         
         df_summary = df_summary.drop([col for col, _ in summary_cols_to_drop], axis=1)
     
-    summary_file = f'lighthouse_scores_summary_{timestamp}.xlsx'
+    summary_file = 'lighthouse_scores_summary.xlsx'
     df_summary.to_excel(summary_file, index=False)
     
     # Print summary
@@ -235,6 +292,12 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
     print(f"Summary dimensions: {df_summary.shape[0]} rows × {df_summary.shape[1]} columns")
     
     print(f"\nFinal columns: {', '.join(df_final.columns)}")
+    
+    # Count keyboard focus columns retained
+    keyboard_focus_cols_final = [col for col in df_final.columns if 'keyboard' in col.lower() or 'focus' in col.lower()]
+    print(f"\nKeyboard focus columns preserved: {len(keyboard_focus_cols_final)}")
+    for col in keyboard_focus_cols_final:
+        print(f"  - {col}")
     
     if 'Accessibility_Score' in df_final.columns:
         pass_rate = (df_final['Accessibility_Score'] >= 90).mean() * 100
