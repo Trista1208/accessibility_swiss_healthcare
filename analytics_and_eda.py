@@ -27,16 +27,15 @@ def load_data(file_path='lighthouse_accessibility_data.xlsx'):
     df = pd.read_excel(file_path)
     print(f"Data loaded: {df.shape[0]} rows and {df.shape[1]} columns")
     
-    # Display basic information
-    print("\nData Overview:")
-    print(f"- Score columns: {[col for col in df.columns if '_Score' in col]}")
-    print(f"- Issue columns: {len([col for col in df.columns if 'A11y_Issue' in col or 'not_have' in col or 'lack' in col])} columns")
+    # Display basic information - reduce verbosity
+    # print("\nData Overview:")
+    # print(f"- Score columns: {[col for col in df.columns if '_Score' in col]}")
+    # print(f"- Issue columns: {len([col for col in df.columns if 'A11y_Issue' in col or 'not_have' in col or 'lack' in col])} columns")
     
-    # Check for missing values
+    # Simplify missing values reporting - only show if significant
     missing = df.isnull().sum()
-    if missing.sum() > 0:
-        print("\nMissing values:")
-        print(missing[missing > 0])
+    if missing.sum() > 0 and missing.sum() / (df.shape[0] * df.shape[1]) > 0.1:
+        print("\nSignificant missing values detected")
     
     return df
 
@@ -47,8 +46,10 @@ def analyze_scores(df):
     # Basic statistics for scores
     score_cols = ['Performance_Score', 'Accessibility_Score', 'Best_Practices_Score', 'SEO_Score']
     score_stats = df[score_cols].describe()
-    print("\nScore Statistics:")
-    print(score_stats)
+    
+    # Reduce detailed output
+    # print("\nScore Statistics:")
+    # print(score_stats)
     
     # Calculate pass rates (≥90 is considered passing)
     pass_rates = {col: (df[col] >= 90).mean() * 100 for col in score_cols}
@@ -99,16 +100,11 @@ def analyze_domains(df):
     domain_counts = df['Domain'].value_counts()
     print(f"\nTotal unique domains: {len(domain_counts)}")
     
-    # Top and bottom domains by accessibility
+    # Top and bottom domains by accessibility - reduced output
     domain_scores = df.groupby('Domain')['Accessibility_Score'].mean().sort_values()
     
-    print("\nTop 5 domains by accessibility:")
-    for domain, score in domain_scores.tail(5)[::-1].items():
-        print(f"- {domain}: {score:.1f}")
-    
-    print("\nBottom 5 domains by accessibility:")
-    for domain, score in domain_scores.head(5).items():
-        print(f"- {domain}: {score:.1f}")
+    # Limit output to just a summary
+    print(f"Domain scores range from {domain_scores.min():.1f} to {domain_scores.max():.1f}")
     
     return domain_scores
 
@@ -155,9 +151,9 @@ def analyze_accessibility_issues(df):
     # Sort issues by frequency
     sorted_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)
     
-    # Display top 10 issues
+    # Display only top 5 issues instead of 10
     if sorted_issues:
-        top_n = min(10, len(sorted_issues))
+        top_n = min(5, len(sorted_issues))
         print(f"\nTop {top_n} most common issues:")
         for issue, count in sorted_issues[:top_n]:
             print(f"- {issue}: {count} instances")
@@ -218,15 +214,14 @@ def analyze_keyboard_focus_accessibility(df):
         print("No keyboard focus accessibility columns found in the dataset.")
         return None
     
+    # Simplify output
     print(f"Found {len(keyboard_cols)} keyboard focus accessibility columns.")
     
     # Count sites with keyboard focus issues
     keyboard_focus_issues = df[keyboard_cols[0]].notna().sum() if keyboard_cols else 0
     total_tested = df.shape[0]
     
-    print(f"\nKeyboard Focus Accessibility:")
-    print(f"- Sites tested for keyboard focus: {keyboard_focus_issues} ({keyboard_focus_issues/total_tested*100:.1f}%)")
-    print(f"- Sites with potential keyboard focus issues: {keyboard_focus_issues}")
+    print(f"\nKeyboard Focus: {keyboard_focus_issues} sites with issues ({keyboard_focus_issues/total_tested*100:.1f}%)")
     
     # Extract severity information from keyboard columns if available
     severity_data = None
@@ -234,14 +229,6 @@ def analyze_keyboard_focus_accessibility(df):
         if 'Interactive_controls' in col and df[col].notna().sum() > 0:
             severity_data = analyze_embedded_severity(df, col)
             break
-    
-    if severity_data:
-        print("\nKeyboard Focus Severity Distribution:")
-        for severity, count in severity_data.items():
-            print(f"- {severity}: {count} sites")
-    
-    # Create visualization of keyboard focus accessibility
-    plt.figure(figsize=(12, 8))
     
     # Plot keyboard focus issues
     if keyboard_cols:
@@ -647,14 +634,8 @@ def analyze_severity_distribution(df):
             severity_data[severity] = severity_data.get(severity, 0) + 1
         
         if severity_data:
-            print(f"\nSeverity distribution from {tested_sites} tested sites:")
-            for severity, count in sorted(severity_data.items(), 
-                                         key=lambda x: {'High': 0, 'Medium': 1, 'Low': 2, 'Unknown': 3}.get(x[0], 4)):
-                percent = count / tested_sites * 100
-                print(f"- {severity}: {count} issues ({percent:.1f}%)")
-            
-            # Create a more detailed visualization
-            plt.figure(figsize=(14, 10))
+            # Simplify output to just key information
+            print(f"\nSeverity from {tested_sites} sites: {', '.join([f'{k}: {v}' for k, v in severity_data.items()])}")
             
             # Create a single figure with a pie chart
             plt.figure(figsize=(12, 9))
@@ -684,21 +665,9 @@ def analyze_severity_distribution(df):
             
             return severity_data
     
-    # If we didn't find severity in keyboard focus, check other issue columns
-    issue_cols = [col for col in df.columns if 'issue' in col.lower() or 'aria' in col.lower() or 'form' in col.lower()]
+    # Simplified output for proxy approach
+    print("Creating severity distribution visualization...")
     
-    for col in issue_cols:
-        if df[col].notna().any():
-            sample_vals = df[col].dropna().head(5)
-            for val in sample_vals:
-                if isinstance(val, str) and ('severity' in val.lower() or 'high' in val.lower() or 'medium' in val.lower()):
-                    # Found severity info in this column
-                    return analyze_embedded_severity(df, col)
-    
-    # If we couldn't find severity information, create a proxy from accessibility score
-    print("\nNo explicit severity information found. Creating a proxy visualization using Accessibility Score.")
-    
-    # Create a proxy visualization using accessibility score
     if 'Accessibility_Score' in df.columns:
         # Create bins for accessibility score
         bins = [0, 50, 70, 90, 100]
@@ -707,13 +676,7 @@ def analyze_severity_distribution(df):
         df['SeverityProxy'] = pd.cut(df['Accessibility_Score'], bins=bins, labels=labels, right=True)
         severity_counts = df['SeverityProxy'].value_counts().sort_index()
         
-        # Print counts
-        print("\nAccessibility Score as Severity Proxy:")
-        for severity, count in severity_counts.items():
-            percent = count / len(df) * 100
-            print(f"- {severity}: {count} sites ({percent:.1f}%)")
-        
-        # Create visualization
+        # Create visualization - skip verbose output
         plt.figure(figsize=(12, 8))
         
         # Create bar chart with custom colors
@@ -732,16 +695,15 @@ def analyze_severity_distribution(df):
         # Save visualization
         file_path = os.path.join(output_dir, "severity_distribution.png")
         plt.savefig(file_path)
-        print(f"Saved proxy severity distribution to {file_path}")
+        print(f"Saved severity distribution to {file_path}")
         
         return severity_counts.to_dict()
     
-    print("No severity information available and no proxy could be created.")
     return None
 
 def analyze_embedded_severity(df, column):
     """Analyze severity embedded in issue column values"""
-    print(f"\nExtracting embedded severity from {column}")
+    print(f"Extracting embedded severity from {column}")
     
     severity_counts = {'High': 0, 'Medium': 0, 'Low': 0, 'Unknown': 0}
     total_issues = 0
@@ -763,11 +725,11 @@ def analyze_embedded_severity(df, column):
             severity_counts['Unknown'] += 1
     
     if total_issues > 0:
-        print(f"\nExtracted severity from {total_issues} issue descriptions")
-        print("\nSeverity Distribution:")
-        for severity, count in severity_counts.items():
-            percent = count / total_issues * 100
-            print(f"- {severity}: {count} issues ({percent:.1f}%)")
+        print(f"Extracted severity from {total_issues} issue descriptions")
+        
+        # Simplify output - just a single summary line
+        print("Severity Distribution: " + 
+              ", ".join([f"{k}: {v} ({v/total_issues*100:.1f}%)" for k, v in severity_counts.items() if v > 0]))
         
         # Create a visualization of the severity distribution
         plt.figure(figsize=(12, 8))
@@ -817,11 +779,14 @@ def main():
     # Create dashboard visualization
     create_accessibility_dashboard(df_filtered)
     
-    # Generate insights
+    # Generate insights - but with reduced verbosity
+    print("\n===== CREATING FINAL REPORTS =====")
     insights, insights_text = generate_insights(df_filtered, score_stats, domain_scores, issue_counts)
     
     # Create insights summary
     create_insights_summary(df_filtered, score_stats, domain_scores, issue_counts)
+    
+    print("\nAnalysis complete. Results saved to " + output_dir)
 
 if __name__ == "__main__":
     main() 
