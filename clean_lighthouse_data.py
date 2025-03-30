@@ -412,7 +412,10 @@ def process_accessibility_issues(df):
             column_name = column_name[:60] + '...'
         result_df[column_name] = pd.Series(values)
     
-    print(f"Extracted {len(all_issues)} unique accessibility issues")
+    # Drop the original Accessibility_Issues_Details column after extracting the issues
+    result_df = result_df.drop(columns=['Accessibility_Issues_Details'])
+    print(f"Extracted {len(all_issues)} unique accessibility issues and dropped Accessibility_Issues_Details column")
+    
     return result_df
 
 if __name__ == "__main__":
