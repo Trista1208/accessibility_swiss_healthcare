@@ -324,7 +324,7 @@ def create_accessibility_dashboard(df):
     
     # Create figure with subplots
     fig = plt.figure(figsize=(16, 12))
-    gs = gridspec.GridSpec(2, 2, figure=fig)
+    gs = gridspec.GridSpec(3, 2, figure=fig)
     
     # 1. Score Distribution Plot
     ax_scores = fig.add_subplot(gs[0, 0])
@@ -425,6 +425,59 @@ def create_accessibility_dashboard(df):
         
         ax_keyboard.set_title('Keyboard Focus Accessibility Testing Coverage')
         ax_keyboard.axis('equal')
+    
+    # 5. Severity Distribution
+    ax_severity = fig.add_subplot(gs[2, :])
+    
+    # Extract severity information from keyboard focus column if available
+    keyboard_focus_col = next((col for col in df.columns if 'keyboard' in col.lower() and 'focusable' in col.lower()), None)
+    
+    if keyboard_focus_col and df[keyboard_focus_col].notna().any():
+        # Extract severity from each value
+        severity_data = {'High': 0, 'Medium': 0, 'Low': 0, 'Unknown': 0}
+        
+        for val in df[keyboard_focus_col].dropna():
+            val_str = str(val).lower()
+            
+            if 'severity: high' in val_str:
+                severity_data['High'] += 1
+            elif 'severity: medium' in val_str:
+                severity_data['Medium'] += 1
+            elif 'severity: low' in val_str:
+                severity_data['Low'] += 1
+            else:
+                severity_data['Unknown'] += 1
+        
+        # Only show non-zero counts
+        non_zero = {k: v for k, v in severity_data.items() if v > 0}
+        
+        if non_zero:
+            # Define colors for different severity levels
+            colors = {'High': '#FF5252', 'Medium': '#FFA726', 'Low': '#66BB6A', 'Unknown': '#E0E0E0'}
+            
+            # Create horizontal bar chart
+            severity_labels = list(non_zero.keys())
+            severity_values = list(non_zero.values())
+            
+            # Sort by severity level (High, Medium, Low, Unknown)
+            severity_order = {'High': 0, 'Medium': 1, 'Low': 2, 'Unknown': 3}
+            sorted_data = sorted(zip(severity_labels, severity_values), 
+                                key=lambda x: severity_order.get(x[0], 4))
+            
+            labels = [x[0] for x in sorted_data]
+            values = [x[1] for x in sorted_data]
+            
+            bars = ax_severity.barh(labels, values, 
+                                   color=[colors.get(label, '#BDBDBD') for label in labels])
+            
+            # Add value labels
+            for bar in bars:
+                width = bar.get_width()
+                ax_severity.text(width + 0.5, bar.get_y() + bar.get_height()/2, 
+                               str(int(width)), va='center')
+            
+            ax_severity.set_title('Accessibility Issues by Severity')
+            ax_severity.set_xlabel('Number of Issues')
     
     # Adjust layout
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
@@ -560,10 +613,6 @@ This document presents an analysis of web accessibility for Swiss healthcare web
    - Implement accessibility testing in the development lifecycle
    - Test with assistive technologies
 
-3. **Monitoring & Maintenance**:
-   - Implement regular accessibility audits
-   - Include user testing with people with disabilities
-
 ## CONCLUSION
 
 The accessibility of Swiss healthcare websites requires significant improvement. With less than half meeting basic accessibility standards, there is a clear need for healthcare providers to address these issues.
@@ -667,79 +716,6 @@ def analyze_severity_distribution(df):
             file_path = os.path.join(output_dir, "severity_distribution.png")
             plt.savefig(file_path, dpi=300, bbox_inches='tight')
             print(f"Saved detailed severity distribution to {file_path}")
-            
-            # Also create a stacked horizontal bar showing severity by issue type
-            if keyboard_focus_col:
-                # Create a new figure for the issue-severity relationship
-                plt.figure(figsize=(14, 6))
-                
-                # Extract issue information if available
-                issue_data = {
-                    'Interactive Controls Not Focusable': severity_data
-                }
-                
-                # Check for other issue columns with severity info
-                for col in df.columns:
-                    if ('aria' in col.lower() or 'form' in col.lower()) and df[col].notna().any():
-                        for val in df[col].dropna().head(5):  # Check a few values
-                            if isinstance(val, str) and 'severity' in val.lower():
-                                # This column has severity info, extract it
-                                col_severity = {'High': 0, 'Medium': 0, 'Low': 0, 'Unknown': 0}
-                                
-                                for val in df[col].dropna():
-                                    val_str = str(val).lower()
-                                    if 'severity: high' in val_str:
-                                        col_severity['High'] += 1
-                                    elif 'severity: medium' in val_str:
-                                        col_severity['Medium'] += 1
-                                    elif 'severity: low' in val_str:
-                                        col_severity['Low'] += 1
-                                    else:
-                                        col_severity['Unknown'] += 1
-                                
-                                # Clean up the name for display
-                                display_name = col.replace('A11y_Issue_', '').replace('Accessibility_', '').replace('_', ' ')
-                                if len(display_name) > 30:
-                                    display_name = display_name[:30] + '...'
-                                
-                                issue_data[display_name] = col_severity
-                                break  # We found severity info, move to next column
-                
-                # Create stacked bar chart if we have multiple issues
-                if len(issue_data) > 1:
-                    # Prepare data for plotting
-                    issues = list(issue_data.keys())
-                    high_vals = [data.get('High', 0) for data in issue_data.values()]
-                    medium_vals = [data.get('Medium', 0) for data in issue_data.values()]
-                    low_vals = [data.get('Low', 0) for data in issue_data.values()]
-                    unknown_vals = [data.get('Unknown', 0) for data in issue_data.values()]
-                    
-                    # Plot stacked bars
-                    plt.barh(issues, high_vals, color='#FF5252', label='High')
-                    plt.barh(issues, medium_vals, left=high_vals, color='#FFA726', label='Medium')
-                    plt.barh(issues, low_vals, left=[h+m for h,m in zip(high_vals, medium_vals)], color='#66BB6A', label='Low')
-                    
-                    if any(unknown_vals):
-                        plt.barh(issues, unknown_vals, 
-                                left=[h+m+l for h,m,l in zip(high_vals, medium_vals, low_vals)], 
-                                color='#E0E0E0', label='Unknown')
-                    
-                    plt.xlabel('Number of Issues')
-                    plt.title('Severity Distribution by Issue Type')
-                    plt.legend(loc='upper right')
-                    plt.grid(axis='x', alpha=0.3)
-                    
-                    # Add count annotations
-                    for i, issue in enumerate(issues):
-                        total = high_vals[i] + medium_vals[i] + low_vals[i] + unknown_vals[i]
-                        plt.text(total + 0.5, i, str(total), va='center')
-                    
-                    plt.tight_layout()
-                    
-                    # Save the issue-severity relationship plot
-                    file_path = os.path.join(output_dir, "severity_by_issue_type.png")
-                    plt.savefig(file_path, dpi=300, bbox_inches='tight')
-                    print(f"Saved severity by issue type to {file_path}")
             
             return severity_data
     
