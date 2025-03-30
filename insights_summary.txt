@@ -1,9 +1,8 @@
 # SWISS HEALTHCARE WEBSITE ACCESSIBILITY INSIGHTS
-==================================================
 
 ## OVERVIEW
 
-This document presents a comprehensive analysis of web accessibility for Swiss healthcare websites based on Google Lighthouse audits. The analysis included 92 websites after excluding websites that were PDFs or non-HTML content that couldn't be properly analyzed by the Lighthouse tool.
+This document presents an analysis of web accessibility for Swiss healthcare websites based on Google Lighthouse audits. The analysis included 92 websites.
 
 ## KEY ACCESSIBILITY FINDINGS
 
@@ -11,58 +10,31 @@ This document presents a comprehensive analysis of web accessibility for Swiss h
 
 2. **Average Performance**:
    - Average accessibility score: 88.1/100
-   - Average number of accessibility issues: 3.152173913043478 per site
+   - Average number of accessibility issues: 3.2 per site (for sites with available issue data)
 
-3. **Domain Performance Discrepancy**:
-   - 41.0-point gap between best and worst domains
-   - 0 websites were found to have zero accessibility issues
-
-4. **Top Accessibility Issues**:
+3. **Top Accessibility Issues**:
    - High Severity Issues (92 sites)
    - ARIA attributes are not used correctly (38 sites)
    - Form elements do not have associated labels (31 sites)
    - Keyboard Focus Interactive controls are not keyboard focusable (29 sites)
 
-5. **Keyboard Accessibility**:
+4. **Keyboard Accessibility**:
    - Only 31.5% of sites were tested for keyboard focus accessibility
-   - 100.0% pass rate among tested sites for keyboard focus criteria
-   - Most keyboard focus issues were not tested, representing a significant gap
-
-6. **Performance Metrics**:
-   - Performance: Only 6.5% pass rate
-   - Best Practices: 63.0% pass rate
-   - SEO: 62.0% pass rate
 
 ## RECOMMENDATIONS
 
 1. **Critical Improvements**:
-   - Fix performance issues like Time to Interactive and First Contentful Paint
-   - Add explicit image dimensions
-   - Implement efficient caching policies
-   - Optimize JavaScript loading and execution
+   - Fix common accessibility issues identified in this analysis
+   - Implement efficient keyboard navigation
+   - Ensure proper image descriptions and ARIA attributes
 
 2. **Accessibility Standards**:
    - Adopt and adhere to WCAG 2.1 AA standards
    - Implement accessibility testing in the development lifecycle
-   - Provide accessibility training for development teams
-
-3. **Targeted Testing**:
-   - Increase testing coverage for keyboard focus accessibility
-   - Ensure all interactive elements are keyboard accessible
    - Test with assistive technologies
-
-4. **Monitoring & Maintenance**:
-   - Implement regular accessibility audits
-   - Set benchmarks for improvement over time
-   - Include user testing with people with disabilities
-
-## METHODOLOGY NOTE
-
-Websites that were PDFs or non-HTML content were excluded from the analysis because they couldn't be properly analyzed by the Lighthouse tool. The final analysis was conducted on the remaining websites.
 
 ## CONCLUSION
 
-The accessibility of Swiss healthcare websites requires significant improvement. With less than half meeting basic accessibility standards, there is a clear need for healthcare providers to address these issues. Improving accessibility ensures that all users, including those with disabilities, have equal access to vital healthcare information and services.
+The accessibility of Swiss healthcare websites requires significant improvement. With less than half meeting basic accessibility standards, there is a clear need for healthcare providers to address these issues.
 
-==================================================
 Report Date: {timestamp}

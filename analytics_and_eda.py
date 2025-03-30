@@ -495,7 +495,16 @@ def generate_insights(df, score_stats, domain_scores, issue_counts=None):
     # Calculate key metrics
     pass_rate = (df['Accessibility_Score'] >= 90).mean() * 100
     avg_score = score_stats.loc['mean', 'Accessibility_Score']
-    avg_issues = df['Accessibility_Issues_Count'].mean() if 'Accessibility_Issues_Count' in df.columns else None
+    
+    # Calculate average issues properly by excluding sites without issues data
+    avg_issues = None
+    if 'Accessibility_Issues_Count' in df.columns:
+        # Only consider sites that have issue count data (not NaN)
+        sites_with_issue_data = df['Accessibility_Issues_Count'].notna()
+        if sites_with_issue_data.any():
+            avg_issues = df.loc[sites_with_issue_data, 'Accessibility_Issues_Count'].mean()
+            # Also calculate what percentage of sites have issue data
+            percent_with_data = sites_with_issue_data.mean() * 100
     
     insights = [
         f"1. Only {pass_rate:.1f}% of analyzed healthcare websites pass accessibility standards (score ≥90).",
@@ -503,7 +512,7 @@ def generate_insights(df, score_stats, domain_scores, issue_counts=None):
     ]
     
     if avg_issues is not None:
-        insights.append(f"3. Websites have an average of {avg_issues:.1f} accessibility issues that need to be addressed.")
+        insights.append(f"3. Websites have an average of {avg_issues:.1f} accessibility issues that need to be addressed (based on sites with available issue data).")
     
     # Domain insights
     if domain_scores is not None and len(domain_scores) > 1:
@@ -559,6 +568,14 @@ def create_insights_summary(df, score_stats, domain_scores, issue_counts):
     """Create a summary of insights and recommendations"""
     timestamp = datetime.now().strftime("%B %d, %Y")
     
+    # Calculate average issues properly by excluding sites without issues data
+    avg_issues = None
+    if 'Accessibility_Issues_Count' in df.columns:
+        # Only consider sites that have issue count data (not NaN)
+        sites_with_issue_data = df['Accessibility_Issues_Count'].notna()
+        if sites_with_issue_data.any():
+            avg_issues = df.loc[sites_with_issue_data, 'Accessibility_Issues_Count'].mean()
+    
     # Create the content
     summary = f"""# SWISS HEALTHCARE WEBSITE ACCESSIBILITY INSIGHTS
 
@@ -571,10 +588,14 @@ This document presents an analysis of web accessibility for Swiss healthcare web
 1. **Accessibility Compliance**: Only {(df['Accessibility_Score'] >= 90).mean() * 100:.1f}% of healthcare websites pass accessibility standards (score ≥90/100).
 
 2. **Average Performance**:
-   - Average accessibility score: {score_stats.loc['mean', 'Accessibility_Score']:.1f}/100
-   - Average number of accessibility issues: {df['Accessibility_Issues_Count'].mean() if 'Accessibility_Issues_Count' in df.columns else 'N/A'} per site
+   - Average accessibility score: {score_stats.loc['mean', 'Accessibility_Score']:.1f}/100"""
 
-3. **Top Accessibility Issues**:"""
+    if avg_issues is not None:
+        summary += f"\n   - Average number of accessibility issues: {avg_issues:.1f} per site (for sites with available issue data)"
+    else:
+        summary += "\n   - Average number of accessibility issues: No data available"
+
+    summary += "\n\n3. **Top Accessibility Issues**:"
 
     # Add top issues if available
     if issue_counts and len(issue_counts) > 0:
