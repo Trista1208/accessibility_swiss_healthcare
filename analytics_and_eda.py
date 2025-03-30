@@ -584,6 +584,324 @@ Report Date: {timestamp}"""
     
     return summary
 
+def analyze_severity_distribution(df):
+    """Analyze and visualize the severity distribution of accessibility issues"""
+    print("\n===== SEVERITY DISTRIBUTION ANALYSIS =====")
+    
+    # Extract severity from keyboard focus column if available
+    keyboard_focus_col = next((col for col in df.columns if 'keyboard' in col.lower() and 'focusable' in col.lower()), None)
+    
+    if keyboard_focus_col and df[keyboard_focus_col].notna().any():
+        print(f"\nExtracting severity information from {keyboard_focus_col}")
+        
+        # Extract severity from each value
+        severity_data = {}
+        tested_sites = 0
+        
+        for val in df[keyboard_focus_col].dropna():
+            tested_sites += 1
+            val_str = str(val).lower()
+            
+            if 'severity: high' in val_str:
+                severity = 'High'
+            elif 'severity: medium' in val_str:
+                severity = 'Medium'
+            elif 'severity: low' in val_str:
+                severity = 'Low'
+            else:
+                severity = 'Unknown'
+            
+            severity_data[severity] = severity_data.get(severity, 0) + 1
+        
+        if severity_data:
+            print(f"\nSeverity distribution from {tested_sites} tested sites:")
+            for severity, count in sorted(severity_data.items(), 
+                                         key=lambda x: {'High': 0, 'Medium': 1, 'Low': 2, 'Unknown': 3}.get(x[0], 4)):
+                percent = count / tested_sites * 100
+                print(f"- {severity}: {count} issues ({percent:.1f}%)")
+            
+            # Create a more detailed visualization
+            plt.figure(figsize=(14, 10))
+            
+            # Set up a 2x1 subplot grid
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+            
+            # 1. Pie chart for severity distribution
+            colors = {'High': '#FF5252', 'Medium': '#FFA726', 'Low': '#66BB6A', 'Unknown': '#E0E0E0'}
+            sorted_data = sorted(severity_data.items(), 
+                              key=lambda x: {'High': 0, 'Medium': 1, 'Low': 2, 'Unknown': 3}.get(x[0], 4))
+            labels = [f"{k} ({v})" for k, v in sorted_data]
+            sizes = [v for _, v in sorted_data]
+            
+            # Explode the high severity slice
+            explode = [0.1 if k == 'High' else 0.05 if k == 'Medium' else 0 for k, _ in sorted_data]
+            
+            ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%', startangle=90,
+                   colors=[colors.get(k, '#BDBDBD') for k, _ in sorted_data], shadow=True)
+            ax1.axis('equal')
+            ax1.set_title('Keyboard Focus Issues by Severity', fontsize=14)
+            
+            # 2. Bar chart showing severity counts
+            bars = ax2.bar(
+                [k for k, _ in sorted_data],
+                [v for _, v in sorted_data],
+                color=[colors.get(k, '#BDBDBD') for k, _ in sorted_data]
+            )
+            
+            # Add count labels above bars
+            for bar in bars:
+                height = bar.get_height()
+                ax2.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                        f'{int(height)}', ha='center', va='bottom', fontsize=12)
+            
+            ax2.set_title('Severity Count Distribution', fontsize=14)
+            ax2.set_xlabel('Severity Level', fontsize=12)
+            ax2.set_ylabel('Number of Issues', fontsize=12)
+            ax2.grid(axis='y', alpha=0.3)
+            
+            # Improve overall appearance
+            plt.suptitle('Accessibility Issue Severity Analysis', fontsize=16, y=0.98)
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            
+            # Save the plot
+            file_path = os.path.join(output_dir, "severity_distribution.png")
+            plt.savefig(file_path, dpi=300, bbox_inches='tight')
+            print(f"Saved detailed severity distribution to {file_path}")
+            
+            # Also create a stacked horizontal bar showing severity by issue type
+            if keyboard_focus_col:
+                # Create a new figure for the issue-severity relationship
+                plt.figure(figsize=(14, 6))
+                
+                # Extract issue information if available
+                issue_data = {
+                    'Interactive Controls Not Focusable': severity_data
+                }
+                
+                # Check for other issue columns with severity info
+                for col in df.columns:
+                    if ('aria' in col.lower() or 'form' in col.lower()) and df[col].notna().any():
+                        for val in df[col].dropna().head(5):  # Check a few values
+                            if isinstance(val, str) and 'severity' in val.lower():
+                                # This column has severity info, extract it
+                                col_severity = {'High': 0, 'Medium': 0, 'Low': 0, 'Unknown': 0}
+                                
+                                for val in df[col].dropna():
+                                    val_str = str(val).lower()
+                                    if 'severity: high' in val_str:
+                                        col_severity['High'] += 1
+                                    elif 'severity: medium' in val_str:
+                                        col_severity['Medium'] += 1
+                                    elif 'severity: low' in val_str:
+                                        col_severity['Low'] += 1
+                                    else:
+                                        col_severity['Unknown'] += 1
+                                
+                                # Clean up the name for display
+                                display_name = col.replace('A11y_Issue_', '').replace('Accessibility_', '').replace('_', ' ')
+                                if len(display_name) > 30:
+                                    display_name = display_name[:30] + '...'
+                                
+                                issue_data[display_name] = col_severity
+                                break  # We found severity info, move to next column
+                
+                # Create stacked bar chart if we have multiple issues
+                if len(issue_data) > 1:
+                    # Prepare data for plotting
+                    issues = list(issue_data.keys())
+                    high_vals = [data.get('High', 0) for data in issue_data.values()]
+                    medium_vals = [data.get('Medium', 0) for data in issue_data.values()]
+                    low_vals = [data.get('Low', 0) for data in issue_data.values()]
+                    unknown_vals = [data.get('Unknown', 0) for data in issue_data.values()]
+                    
+                    # Plot stacked bars
+                    plt.barh(issues, high_vals, color='#FF5252', label='High')
+                    plt.barh(issues, medium_vals, left=high_vals, color='#FFA726', label='Medium')
+                    plt.barh(issues, low_vals, left=[h+m for h,m in zip(high_vals, medium_vals)], color='#66BB6A', label='Low')
+                    
+                    if any(unknown_vals):
+                        plt.barh(issues, unknown_vals, 
+                                left=[h+m+l for h,m,l in zip(high_vals, medium_vals, low_vals)], 
+                                color='#E0E0E0', label='Unknown')
+                    
+                    plt.xlabel('Number of Issues')
+                    plt.title('Severity Distribution by Issue Type')
+                    plt.legend(loc='upper right')
+                    plt.grid(axis='x', alpha=0.3)
+                    
+                    # Add count annotations
+                    for i, issue in enumerate(issues):
+                        total = high_vals[i] + medium_vals[i] + low_vals[i] + unknown_vals[i]
+                        plt.text(total + 0.5, i, str(total), va='center')
+                    
+                    plt.tight_layout()
+                    
+                    # Save the issue-severity relationship plot
+                    file_path = os.path.join(output_dir, "severity_by_issue_type.png")
+                    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+                    print(f"Saved severity by issue type to {file_path}")
+            
+            return severity_data
+    
+    # If we didn't find severity in keyboard focus, check other issue columns
+    issue_cols = [col for col in df.columns if 'issue' in col.lower() or 'aria' in col.lower() or 'form' in col.lower()]
+    
+    for col in issue_cols:
+        if df[col].notna().any():
+            sample_vals = df[col].dropna().head(5)
+            for val in sample_vals:
+                if isinstance(val, str) and ('severity' in val.lower() or 'high' in val.lower() or 'medium' in val.lower()):
+                    # Found severity info in this column
+                    return analyze_embedded_severity(df, col)
+    
+    # If we didn't find embedded severity, look for explicit severity columns
+    potential_severity_cols = []
+    for col in df.columns:
+        col_lower = col.lower()
+        if ('severity' in col_lower or 
+            'impact' in col_lower or 
+            'priority' in col_lower or
+            ('issue' in col_lower and ('type' in col_lower or 'level' in col_lower))):
+            potential_severity_cols.append(col)
+    
+    if potential_severity_cols:
+        severity_col = potential_severity_cols[0]  # Use the first one
+        print(f"\nAnalyzing severity from column: {severity_col}")
+        
+        if df[severity_col].dtype == 'object':
+            # If it's a string column, count by category
+            severity_counts = df[severity_col].value_counts()
+            
+            # Print counts
+            print("\nSeverity Distribution:")
+            for severity, count in severity_counts.items():
+                percent = count / severity_counts.sum() * 100
+                print(f"- {severity}: {count} issues ({percent:.1f}%)")
+            
+            # Create a visualization of the severity distribution
+            plt.figure(figsize=(12, 8))
+            
+            # Create bar chart
+            ax = severity_counts.plot(kind='bar', color='skyblue')
+            plt.title('Issue Severity Distribution')
+            plt.xlabel('Severity')
+            plt.ylabel('Count')
+            
+            # Add value labels
+            for i, v in enumerate(severity_counts):
+                ax.text(i, v + 0.1, str(v), ha='center')
+            
+            plt.tight_layout()
+            
+            # Save visualization
+            file_path = os.path.join(output_dir, "severity_distribution.png")
+            plt.savefig(file_path)
+            print(f"Saved severity distribution to {file_path}")
+            
+            return severity_counts.to_dict()
+    
+    # If we couldn't find severity information, create a proxy from accessibility score
+    print("\nNo explicit severity information found. Creating a proxy visualization using Accessibility Score.")
+    
+    # Create a proxy visualization using accessibility score
+    if 'Accessibility_Score' in df.columns:
+        # Create bins for accessibility score
+        bins = [0, 50, 70, 90, 100]
+        labels = ['Critical (0-50)', 'High (51-70)', 'Medium (71-90)', 'Low (91-100)']
+        
+        df['SeverityProxy'] = pd.cut(df['Accessibility_Score'], bins=bins, labels=labels, right=True)
+        severity_counts = df['SeverityProxy'].value_counts().sort_index()
+        
+        # Print counts
+        print("\nAccessibility Score as Severity Proxy:")
+        for severity, count in severity_counts.items():
+            percent = count / len(df) * 100
+            print(f"- {severity}: {count} sites ({percent:.1f}%)")
+        
+        # Create visualization
+        plt.figure(figsize=(12, 8))
+        
+        # Create bar chart with custom colors
+        colors = ['crimson', 'orange', 'gold', 'lightgreen']
+        ax = severity_counts.plot(kind='bar', color=colors[:len(severity_counts)])
+        plt.title('Sites by Accessibility Severity Level (Based on Score)')
+        plt.xlabel('Severity Level')
+        plt.ylabel('Number of Sites')
+        
+        # Add value labels
+        for i, v in enumerate(severity_counts):
+            ax.text(i, v + 0.5, str(v), ha='center')
+        
+        plt.tight_layout()
+        
+        # Save visualization
+        file_path = os.path.join(output_dir, "severity_distribution.png")
+        plt.savefig(file_path)
+        print(f"Saved proxy severity distribution to {file_path}")
+        
+        return severity_counts.to_dict()
+    
+    print("No severity information available and no proxy could be created.")
+    return None
+
+def analyze_embedded_severity(df, column):
+    """Analyze severity embedded in issue column values"""
+    print(f"\nExtracting embedded severity from {column}")
+    
+    severity_counts = {'High': 0, 'Medium': 0, 'Low': 0, 'Unknown': 0}
+    total_issues = 0
+    
+    for val in df[column].dropna():
+        if pd.isna(val):
+            continue
+        
+        val_str = str(val).lower()
+        total_issues += 1
+        
+        if 'severity: high' in val_str or 'high severity' in val_str:
+            severity_counts['High'] += 1
+        elif 'severity: medium' in val_str or 'medium severity' in val_str:
+            severity_counts['Medium'] += 1
+        elif 'severity: low' in val_str or 'low severity' in val_str:
+            severity_counts['Low'] += 1
+        else:
+            severity_counts['Unknown'] += 1
+    
+    if total_issues > 0:
+        print(f"\nExtracted severity from {total_issues} issue descriptions")
+        print("\nSeverity Distribution:")
+        for severity, count in severity_counts.items():
+            percent = count / total_issues * 100
+            print(f"- {severity}: {count} issues ({percent:.1f}%)")
+        
+        # Create a visualization of the severity distribution
+        plt.figure(figsize=(12, 8))
+        
+        # Create pie chart
+        colors = {'High': 'crimson', 'Medium': 'orange', 'Low': 'lightgreen', 'Unknown': 'lightgray'}
+        
+        # Filter out zero counts to avoid empty slices
+        non_zero_counts = {k: v for k, v in severity_counts.items() if v > 0}
+        if non_zero_counts:
+            labels = [f"{k} ({v})" for k, v in non_zero_counts.items()]
+            sizes = list(non_zero_counts.values())
+            
+            plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90,
+                    colors=[colors.get(k, 'gray') for k in non_zero_counts.keys()],
+                    explode=[0.1 if k == 'High' else (0.05 if k == 'Medium' else 0) for k in non_zero_counts.keys()])
+            
+            plt.axis('equal')
+            plt.title(f'Severity Distribution: {column.replace("_", " ")}')
+            
+            # Save visualization
+            file_path = os.path.join(output_dir, "severity_distribution.png")
+            plt.savefig(file_path)
+            print(f"Saved severity distribution to {file_path}")
+            
+            return severity_counts
+    
+    return None
+
 def main():
     """Main function to execute accessibility analysis"""
     # Load data
@@ -597,6 +915,9 @@ def main():
     domain_scores = analyze_domains(df_filtered)
     issue_counts = analyze_accessibility_issues(df_filtered)
     keyboard_focus_results = analyze_keyboard_focus_accessibility(df_filtered)
+    
+    # Analyze severity distribution
+    severity_distribution = analyze_severity_distribution(df_filtered)
     
     # Create dashboard visualization
     create_accessibility_dashboard(df_filtered)
