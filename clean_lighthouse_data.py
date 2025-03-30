@@ -3,17 +3,22 @@ import numpy as np
 import os
 from datetime import datetime
 
-def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', threshold_empty=0.8):
+def clean_lighthouse_data(input_file='lighthouse_results_detailed_20250321_135559.xlsx', threshold_empty=0.8):
     """
     Clean lighthouse data by removing unnecessary rows and columns with too many empty values
     while preserving the most important information.
     
     Args:
-        input_file: Path to the lighthouse_scores_extracted.xlsx file
+        input_file: Path to the detailed lighthouse results file
         threshold_empty: Threshold for removing columns with empty values (0-1)
     """
     print(f"Reading data from {input_file}...")
-    df = pd.read_excel(input_file)
+    
+    # Handle different file extensions
+    if input_file.endswith('.csv'):
+        df = pd.read_csv(input_file)
+    else:
+        df = pd.read_excel(input_file)
     
     print(f"Original data shape: {df.shape}")
     
@@ -41,7 +46,17 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
         print(f"Removed {before_dedup - len(df_cleaned)} duplicate URLs")
     
     # Step 4: Clean score columns and ensure proper format
-    score_columns = [col for col in df_cleaned.columns if col in ['Performance', 'Accessibility', 'Best Practices', 'SEO']]
+    # Check for typical score column names in both formats
+    possible_score_columns = [
+        # Original format
+        'Performance', 'Accessibility', 'Best Practices', 'SEO',
+        # Alternative format
+        'performance', 'accessibility', 'best-practices', 'seo',
+        'Performance Score', 'Accessibility Score', 'Best Practices Score', 'SEO Score'
+    ]
+    
+    score_columns = [col for col in possible_score_columns if col in df_cleaned.columns]
+    
     for col in score_columns:
         if col in df_cleaned.columns:
             # Convert scores to numeric, replacing 'N/A' with NaN
@@ -50,8 +65,10 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
             df_cleaned[col] = df_cleaned[col].apply(lambda x: min(x, 100) if pd.notna(x) else x)
     
     # Step 5: Create accessibility-specific columns if not present
-    if 'Accessibility' in df_cleaned.columns:
-        df_cleaned['AccessibilityResult'] = df_cleaned['Accessibility'].apply(lambda x: 'Pass' if x >= 90 else 'Fail')
+    accessibility_col = next((col for col in score_columns if 'accessibility' in col.lower()), None)
+    
+    if accessibility_col:
+        df_cleaned['AccessibilityResult'] = df_cleaned[accessibility_col].apply(lambda x: 'Pass' if x >= 90 else 'Fail')
     
     # Step 6: Extract domain names from URLs for easier analysis
     if 'URL' in df_cleaned.columns and 'Domain' not in df_cleaned.columns:
@@ -61,18 +78,26 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
         )
     
     # Step 7: Restructure accessibility issues for better analysis
-    # Identify issue columns - these are columns beyond the basic metadata that contain scores or issue information
-    issue_columns = []
+    # Check for various issue column formats
+    possible_issue_columns = [
+        'Accessibility Issues', 'accessibility-issues', 'A11y Issues',
+        'Issues', 'Failures', 'Errors'
+    ]
+    
+    issue_column = next((col for col in possible_issue_columns if col in df_cleaned.columns), None)
     issue_text_present = False
     
-    # Check if 'Accessibility Issues' column exists and has content
-    if 'Accessibility Issues' in df_cleaned.columns and df_cleaned['Accessibility Issues'].notna().any():
+    # Check if an issue column exists and has content
+    if issue_column and df_cleaned[issue_column].notna().any():
         issue_text_present = True
+        # Rename to standardized name
+        df_cleaned.rename(columns={issue_column: 'Accessibility Issues'}, inplace=True)
     else:
         # Look for columns that might represent specific accessibility issues
+        issue_columns = []
         for col in df_cleaned.columns:
             if col not in ['Rank', 'Title', 'URL', 'Performance', 'Accessibility', 'Best Practices', 
-                           'SEO', 'Domain', 'AccessibilityResult'] + keyboard_focus_cols:
+                          'SEO', 'Domain', 'AccessibilityResult'] + keyboard_focus_cols + score_columns:
                 if df_cleaned[col].notna().any():
                     issue_columns.append(col)
         
@@ -94,18 +119,40 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
             issue_text_present = True
     
     # Step 8: Add summary columns for issue counts
-    if issue_text_present:
+    if issue_text_present and 'Accessibility Issues' in df_cleaned.columns:
         df_cleaned['Total_Issues'] = df_cleaned['Accessibility Issues'].apply(
             lambda x: len(str(x).split(';')) if pd.notna(x) and x != '' else 0
         )
     
     # Step 9: Select and rename only the most important columns
+    # Identify standard column names
+    # Find which of the possible column formats exists in the data
+    standard_columns = {
+        'Rank': next((col for col in ['Rank', 'rank', '#', 'Position'] if col in df_cleaned.columns), None),
+        'Title': next((col for col in ['Title', 'title', 'Website', 'Page Title', 'Name'] if col in df_cleaned.columns), None),
+        'URL': next((col for col in ['URL', 'url', 'Website URL', 'Link'] if col in df_cleaned.columns), None),
+        'Performance': next((col for col in ['Performance', 'performance', 'Performance Score'] if col in df_cleaned.columns), None),
+        'Accessibility': next((col for col in ['Accessibility', 'accessibility', 'Accessibility Score'] if col in df_cleaned.columns), None),
+        'Best Practices': next((col for col in ['Best Practices', 'best-practices', 'Best Practices Score'] if col in df_cleaned.columns), None),
+        'SEO': next((col for col in ['SEO', 'seo', 'SEO Score'] if col in df_cleaned.columns), None),
+    }
+    
+    # Create a mapping for renaming
+    rename_mapping = {v: k for k, v in standard_columns.items() if v is not None}
+    
+    # Apply renaming if needed
+    if rename_mapping:
+        df_cleaned.rename(columns=rename_mapping, inplace=True)
+    
     # Define core columns to keep
     core_columns = [
         'Rank', 'Title', 'URL', 'Domain', 
         'Performance', 'Accessibility', 'Best Practices', 'SEO',
         'AccessibilityResult', 'Total_Issues'
     ]
+    
+    # Filter to only include columns that exist
+    core_columns = [col for col in core_columns if col in df_cleaned.columns]
     
     # Add accessibility issues column if it exists
     if 'Accessibility Issues' in df_cleaned.columns:
@@ -144,7 +191,7 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
     # Add mappings for keyboard focus columns
     for col in keyboard_focus_cols:
         if col in df_final.columns:
-            clean_name = col.replace('.', '')
+            clean_name = str(col).replace('.', '')
             # Convert the keyboard focus column names to be more consistent
             clean_name = f"Accessibility_Keyboard_Focus_{clean_name.replace(' ', '_').replace('-', '_')}"
             columns_mapping[col] = clean_name
@@ -153,7 +200,7 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
     for col in top_issue_cols:
         if col in df_final.columns and col not in keyboard_focus_cols:
             # Clean up column name to be more readable
-            clean_name = col.replace('.', '')
+            clean_name = str(col).replace('.', '')
             # Convert to title case and add prefix if needed
             if 'Accessibility' not in clean_name and 'a11y' not in clean_name.lower():
                 clean_name = f"A11y_Issue_{clean_name}"
@@ -235,8 +282,7 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
             print(f"Restoring accidentally dropped column: {renamed_col}")
             df_final[renamed_col] = df_cleaned[col]
     
-    # Generate output filename with timestamp
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # Generate output filename
     output_file = 'lighthouse_scores_optimized.xlsx'
     
     # Save the cleaned data
@@ -306,7 +352,34 @@ def clean_lighthouse_data(input_file='lighthouse_scores_extracted.xlsx', thresho
     return df_final, output_file, summary_file
 
 if __name__ == "__main__":
-    cleaned_df, output_file, summary_file = clean_lighthouse_data('lighthouse_scores_extracted.xlsx')
+    # Try to find the detailed results file based on various patterns
+    data_files = []
+    
+    for file in os.listdir('.'):
+        if file.endswith('.xlsx') or file.endswith('.csv'):
+            if 'detailed' in file.lower() or 'result' in file.lower():
+                data_files.append((file, os.path.getmtime(file)))
+    
+    # Also look in original_files_backup
+    if os.path.exists('original_files_backup'):
+        for file in os.listdir('original_files_backup'):
+            if file.endswith('.xlsx') or file.endswith('.csv'):
+                if 'detailed' in file.lower() or 'result' in file.lower():
+                    full_path = os.path.join('original_files_backup', file)
+                    data_files.append((full_path, os.path.getmtime(full_path)))
+    
+    if data_files:
+        # Sort by modification time (newest first)
+        data_files.sort(key=lambda x: x[1], reverse=True)
+        input_file = data_files[0][0]
+        print(f"Found data file: {input_file}")
+    else:
+        # Use default if no file found
+        input_file = 'original_files_backup/lighthouse_results_detailed_20250321_135559.xlsx'
+        print(f"Using default file: {input_file}")
+    
+    # Process the data
+    cleaned_df, output_file, summary_file = clean_lighthouse_data(input_file)
     print(f"\nData cleaning completed! Files created:")
     print(f"1. {output_file} - Optimized data with specific column names")
     print(f"2. {summary_file} - Summary with just the most essential information") 
