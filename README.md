@@ -11,6 +11,15 @@ The analysis evaluates the accessibility compliance of 99 healthcare websites in
 - SEO standards
 - Common accessibility issues
 
+## Latest Updates
+
+**[March 30, 2025]**
+- Implemented a red and dark blue color scheme for all visualizations
+- Simplified dashboard by reducing from 3x2 to 2x2 grid
+- Removed unnecessary visualizations to focus on key insights
+- Fixed average accessibility issue calculation to exclude sites without data
+- Enhanced severity analysis with clearer visuals
+
 ## Repository Structure
 
 - **Data Files**:
@@ -30,21 +39,21 @@ The analysis evaluates the accessibility compliance of 99 healthcare websites in
 
 ## Key Findings
 
-- Only 45.5% of analyzed healthcare websites pass accessibility standards (score ≥90)
+- Only 48.9% of analyzed healthcare websites pass accessibility standards (score ≥90)
 - The average accessibility score is 88.1/100
-- Websites have an average of 9.6 accessibility issues per site
+- Websites have an average of 3.2 accessibility issues per site (based on sites with available issue data)
 - There is a 41.0-point difference between the best and worst performing domains
-- Only 7.1% of sites have no detected accessibility issues
-- Performance metrics are particularly problematic, with only 6.1% of sites passing standards
+- The most common accessibility issue is 'High Severity Issues', found on 92 sites
+- Performance metrics are particularly problematic, with only 6.5% of sites passing standards
 
 ## Visualizations
 
-The analysis includes several visualizations:
+The analysis includes several visualizations with a consistent red and dark blue color scheme:
 - Accessibility score distributions
 - Pass/fail breakdown
 - Common accessibility issues
 - Score correlations
-- Issue distributions
+- Severity distribution
 - Comprehensive accessibility dashboard
 
 ## Recommendations
