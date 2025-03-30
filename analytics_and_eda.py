@@ -734,6 +734,368 @@ def analyze_embedded_severity(df, column):
     
     return None
 
+def analyze_accessibility_pass_rates_over_time(df):
+    """Analyze and visualize accessibility pass rates over time if timestamp data is available"""
+    print("\n===== ACCESSIBILITY PASS RATES ANALYSIS =====")
+    
+    # Check if there's a timestamp or date column
+    date_cols = [col for col in df.columns if any(term in col.lower() for term in ['date', 'time', 'timestamp'])]
+    
+    if not date_cols:
+        print("No date/time columns found for temporal analysis")
+        
+        # Create alternative visualization - pass rates by score category
+        plt.figure(figsize=(12, 8))
+        
+        # Get all score columns
+        score_cols = [col for col in df.columns if col.endswith('_Score')]
+        pass_rates = {}
+        
+        # Calculate pass rates for different thresholds
+        thresholds = [70, 80, 90, 95]
+        
+        for col in score_cols:
+            category = col.replace('_Score', '')
+            pass_rates[category] = [100 * (df[col] >= threshold).mean() for threshold in thresholds]
+        
+        # Plot as grouped bar chart
+        categories = list(pass_rates.keys())
+        x = np.arange(len(thresholds))
+        width = 0.8 / len(categories)
+        
+        fig, ax = plt.subplots(figsize=(14, 8))
+        
+        for i, (category, rates) in enumerate(pass_rates.items()):
+            offset = width * i - (width * (len(categories) - 1) / 2)
+            bars = ax.bar(x + offset, rates, width, label=category, 
+                         color=red_blue_palette[i % len(red_blue_palette)])
+            
+            # Add percentage labels on bars
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height + 1,
+                       f'{height:.1f}%', ha='center', va='bottom', 
+                       color='#00008B', fontweight='bold')
+        
+        ax.set_xticks(x)
+        ax.set_xticklabels([f'≥{threshold}' for threshold in thresholds])
+        ax.set_ylabel('Pass Rate (%)')
+        ax.set_xlabel('Score Threshold')
+        ax.set_title('Pass Rates by Score Category and Threshold')
+        ax.set_ylim(0, 100)
+        ax.legend(title='Score Category')
+        
+        plt.tight_layout()
+        file_path = os.path.join(output_dir, "pass_rates_by_threshold.png")
+        plt.savefig(file_path)
+        print(f"Saved pass rates visualization to {file_path}")
+        
+        # Create a visualization of pass vs. fail by score category
+        plt.figure(figsize=(14, 8))
+        
+        # Standard threshold for passing is 90
+        pass_fail_data = []
+        
+        for col in score_cols:
+            category = col.replace('_Score', '')
+            pass_count = (df[col] >= 90).sum()
+            fail_count = (df[col] < 90).sum()
+            pass_fail_data.append({
+                'Category': category,
+                'Pass': pass_count,
+                'Fail': fail_count
+            })
+        
+        # Convert to DataFrame for easier plotting
+        pass_fail_df = pd.DataFrame(pass_fail_data)
+        
+        # Create stacked bar chart
+        ax = pass_fail_df.plot(x='Category', y=['Pass', 'Fail'], kind='bar', stacked=True,
+                             color=['#00008B', '#8B0000'], figsize=(12, 8))
+        
+        # Add percentage annotations
+        for i, row in enumerate(pass_fail_df.itertuples()):
+            total = row.Pass + row.Fail
+            pass_pct = 100 * row.Pass / total
+            fail_pct = 100 * row.Fail / total
+            
+            # Pass percentage (on Pass section)
+            ax.text(i, row.Pass / 2, f'{pass_pct:.1f}%', 
+                   ha='center', va='center', color='white', fontweight='bold')
+            
+            # Fail percentage (on Fail section)
+            ax.text(i, row.Pass + (row.Fail / 2), f'{fail_pct:.1f}%',
+                   ha='center', va='center', color='white', fontweight='bold')
+        
+        plt.title('Pass vs. Fail by Score Category (Threshold ≥90)')
+        plt.xlabel('Score Category')
+        plt.ylabel('Number of Sites')
+        plt.tight_layout()
+        
+        file_path = os.path.join(output_dir, "pass_fail_by_category.png")
+        plt.savefig(file_path)
+        print(f"Saved pass/fail by category visualization to {file_path}")
+        
+        return pass_rates
+    
+    # If we have date information, continue with temporal analysis
+    # ... potential code for temporal analysis if needed in future ...
+    
+    return None
+
+def analyze_accessibility_issues_relationships(df):
+    """Analyze relationships between different accessibility issues"""
+    print("\n===== ACCESSIBILITY ISSUES RELATIONSHIPS =====")
+    
+    # Find all accessibility issue columns
+    issue_cols = []
+    for col in df.columns:
+        # Check for various patterns indicating issue columns
+        if (col.startswith('A11y_Issue_') or 
+            'not_have' in col or 
+            'lacks' in col or 
+            'not_specified' in col or
+            'Interactive_controls' in col):
+            issue_cols.append(col)
+    
+    if len(issue_cols) <= 1:
+        print("Not enough issue columns for relationship analysis")
+        return None
+    
+    # Create a correlation matrix of issues (binary: present=1, absent=0)
+    issue_matrix = pd.DataFrame()
+    
+    for col in issue_cols:
+        # Convert to binary values (NaN = 0, any value = 1)
+        display_name = col.replace('A11y_Issue_', '').replace('_', ' ')
+        if len(display_name) > 30:
+            display_name = display_name[:25] + '...'
+        issue_matrix[display_name] = df[col].notna().astype(int)
+    
+    # Calculate correlation
+    issue_corr = issue_matrix.corr()
+    
+    # Visualize the correlation matrix
+    plt.figure(figsize=(14, 12))
+    mask = np.triu(np.ones_like(issue_corr, dtype=bool))
+    
+    # Use a red-blue colormap for correlations
+    cmap = sns.diverging_palette(220, 10, as_cmap=True)
+    
+    # Plot heatmap
+    sns.heatmap(issue_corr, mask=mask, cmap=cmap, vmax=1, vmin=-1, center=0,
+                annot=True, fmt='.2f', square=True, linewidths=.5, cbar_kws={"shrink": .5})
+    
+    plt.title('Correlations Between Accessibility Issues', fontsize=16)
+    plt.tight_layout()
+    
+    file_path = os.path.join(output_dir, "issue_correlations.png")
+    plt.savefig(file_path)
+    print(f"Saved issue correlations to {file_path}")
+    
+    # Create a co-occurrence network visualization - simplified version
+    plt.figure(figsize=(14, 10))
+    
+    # Count co-occurrences between top issues
+    top_issues = issue_matrix.sum().sort_values(ascending=False).head(5).index.tolist()
+    co_occurrence = pd.DataFrame(index=top_issues, columns=top_issues, data=0)
+    
+    for i, issue1 in enumerate(top_issues):
+        for issue2 in top_issues[i:]:  # Only upper triangle
+            if issue1 != issue2:
+                # Count sites with both issues
+                both = ((issue_matrix[issue1] == 1) & (issue_matrix[issue2] == 1)).sum()
+                co_occurrence.loc[issue1, issue2] = both
+                co_occurrence.loc[issue2, issue1] = both
+    
+    # Create a directed graph visualization
+    from matplotlib.patches import FancyArrowPatch
+    
+    # Define node positions in a circle
+    import math
+    n_nodes = len(top_issues)
+    radius = 0.8
+    node_positions = {}
+    node_colors = {}
+    
+    for i, issue in enumerate(top_issues):
+        angle = 2 * math.pi * i / n_nodes
+        x = radius * math.cos(angle)
+        y = radius * math.sin(angle)
+        node_positions[issue] = (x, y)
+        node_colors[issue] = red_blue_palette[i % len(red_blue_palette)]
+    
+    # Plot nodes
+    fig, ax = plt.subplots(figsize=(14, 12))
+    ax.set_xlim(-1.2, 1.2)
+    ax.set_ylim(-1.2, 1.2)
+    
+    # Add edges (connections)
+    max_co = co_occurrence.max().max()
+    min_width = 1
+    max_width = 8
+    
+    for issue1 in top_issues:
+        for issue2 in top_issues:
+            if issue1 != issue2:
+                co_value = co_occurrence.loc[issue1, issue2]
+                if co_value > 0:
+                    # Scale line width by co-occurrence value
+                    width = min_width + ((co_value / max_co) * (max_width - min_width))
+                    ax.add_patch(FancyArrowPatch(
+                        node_positions[issue1], node_positions[issue2],
+                        arrowstyle='-', mutation_scale=20, 
+                        linewidth=width, alpha=0.7, color='#808080'))
+    
+    # Plot nodes over edges
+    for issue in top_issues:
+        x, y = node_positions[issue]
+        # Plot node
+        count = issue_matrix[issue].sum()
+        size = 1000 * (count / issue_matrix.shape[0])  # Size based on prevalence
+        ax.scatter(x, y, s=size, color=node_colors[issue], alpha=0.8, edgecolor='white', linewidth=2)
+        
+        # Add labels with count
+        ax.text(x, y, f"{issue}\n({count})", ha='center', va='center', 
+                fontsize=10, fontweight='bold', color='white')
+    
+    ax.set_title('Co-occurrence of Top 5 Accessibility Issues', fontsize=16)
+    ax.axis('off')
+    
+    file_path = os.path.join(output_dir, "issue_co_occurrence.png")
+    plt.savefig(file_path)
+    print(f"Saved issue co-occurrence visualization to {file_path}")
+    
+    return issue_corr
+
+def analyze_accessibility_scores_by_issue(df):
+    """Analyze how accessibility issues affect overall scores"""
+    print("\n===== ACCESSIBILITY SCORE BY ISSUE ANALYSIS =====")
+    
+    # Get issue columns
+    issue_cols = []
+    for col in df.columns:
+        if (col.startswith('A11y_Issue_') or 
+            'not_have' in col or 
+            'lacks' in col or 
+            'not_specified' in col or
+            'Interactive_controls' in col):
+            issue_cols.append(col)
+    
+    if not issue_cols:
+        print("No issue columns found for score impact analysis")
+        return None
+    
+    # Get top 5 most common issues
+    issue_counts = {}
+    for col in issue_cols:
+        display_name = col.replace('A11y_Issue_', '').replace('_', ' ')
+        count = df[col].notna().sum()
+        if count > 0:
+            issue_counts[col] = {'name': display_name, 'count': count}
+    
+    sorted_issues = sorted(issue_counts.items(), key=lambda x: x[1]['count'], reverse=True)
+    top_issues = [item[0] for item in sorted_issues[:5]]
+    
+    if not top_issues:
+        print("No issues found with sufficient data")
+        return None
+    
+    # Create box plots showing how each issue affects accessibility score
+    plt.figure(figsize=(14, 10))
+    
+    issue_score_data = []
+    
+    # For each top issue, compare scores for sites with and without the issue
+    for col in top_issues:
+        display_name = issue_counts[col]['name']
+        
+        # Sites with the issue
+        has_issue = df[col].notna()
+        
+        # Get median scores for sites with and without the issue
+        with_issue_median = df.loc[has_issue, 'Accessibility_Score'].median()
+        without_issue_median = df.loc[~has_issue, 'Accessibility_Score'].median()
+        
+        # Store data for plotting
+        issue_score_data.append({
+            'Issue': display_name[:30] + '...' if len(display_name) > 30 else display_name,
+            'With Issue': df.loc[has_issue, 'Accessibility_Score'].tolist(),
+            'Without Issue': df.loc[~has_issue, 'Accessibility_Score'].tolist(),
+            'With_Median': with_issue_median,
+            'Without_Median': without_issue_median,
+            'Impact': without_issue_median - with_issue_median
+        })
+    
+    # Sort by impact
+    issue_score_data.sort(key=lambda x: x['Impact'], reverse=True)
+    
+    # Create plot
+    fig, ax = plt.subplots(figsize=(14, 10))
+    
+    # Positions for the box pairs
+    positions = np.arange(len(issue_score_data)) * 3
+    width = 0.8
+    
+    # Plot box plots
+    for i, data in enumerate(issue_score_data):
+        # With issue box (red)
+        if data['With Issue']:
+            with_box = ax.boxplot([data['With Issue']], positions=[positions[i] - width/2],
+                             widths=width, patch_artist=True,
+                             boxprops=dict(facecolor='#8B0000', color='black'),
+                             medianprops=dict(color='white', linewidth=2),
+                             flierprops=dict(marker='o', markerfacecolor='#D21F3C'))
+        
+        # Without issue box (blue)
+        if data['Without Issue']:
+            without_box = ax.boxplot([data['Without Issue']], positions=[positions[i] + width/2],
+                                widths=width, patch_artist=True,
+                                boxprops=dict(facecolor='#00008B', color='black'),
+                                medianprops=dict(color='white', linewidth=2),
+                                flierprops=dict(marker='o', markerfacecolor='#0000CD'))
+        
+        # Add median value labels
+        ax.text(positions[i] - width/2, data['With_Median'],
+               f"{data['With_Median']:.1f}", ha='center', va='bottom',
+               color='white', fontweight='bold')
+        
+        ax.text(positions[i] + width/2, data['Without_Median'],
+               f"{data['Without_Median']:.1f}", ha='center', va='bottom',
+               color='white', fontweight='bold')
+        
+        # Add impact score
+        ax.text(positions[i], min(data['With_Median'], data['Without_Median']) - 5,
+               f"Impact: {data['Impact']:.1f} pts", ha='center', 
+               color='#D21F3C' if data['Impact'] > 0 else '#00008B',
+               fontweight='bold')
+    
+    # Set labels and title
+    ax.set_ylabel('Accessibility Score')
+    ax.set_title('Impact of Accessibility Issues on Overall Score', fontsize=16)
+    
+    # Set x-tick labels
+    ax.set_xticks(positions)
+    ax.set_xticklabels([data['Issue'] for data in issue_score_data], rotation=45, ha='right')
+    
+    # Add legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='#8B0000', edgecolor='black', label='Sites with Issue'),
+        Patch(facecolor='#00008B', edgecolor='black', label='Sites without Issue')
+    ]
+    ax.legend(handles=legend_elements, loc='lower right')
+    
+    # Set y-axis limits
+    ax.set_ylim(40, 105)
+    
+    plt.tight_layout()
+    file_path = os.path.join(output_dir, "issue_score_impact.png")
+    plt.savefig(file_path)
+    print(f"Saved issue score impact visualization to {file_path}")
+    
+    return issue_score_data
+
 def main():
     """Main function to execute accessibility analysis"""
     # Load data - updated to use the new file
@@ -742,14 +1104,17 @@ def main():
     # Filter out records with missing scores
     df_filtered = df.dropna(subset=['Accessibility_Score'], how='any')
     
-    # Run analyses
+    # Run existing analyses
     score_stats, pass_rates = analyze_scores(df_filtered)
     domain_scores = analyze_domains(df_filtered)
     issue_counts = analyze_accessibility_issues(df_filtered)
     keyboard_focus_results = analyze_keyboard_focus_accessibility(df_filtered)
-    
-    # Analyze severity distribution
     severity_distribution = analyze_severity_distribution(df_filtered)
+    
+    # Run new analyses
+    pass_rate_analysis = analyze_accessibility_pass_rates_over_time(df_filtered)
+    issue_relationships = analyze_accessibility_issues_relationships(df_filtered)
+    issue_impact = analyze_accessibility_scores_by_issue(df_filtered)
     
     # Create dashboard visualization
     create_accessibility_dashboard(df_filtered)
