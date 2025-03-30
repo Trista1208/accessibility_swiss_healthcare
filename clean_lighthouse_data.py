@@ -387,41 +387,26 @@ def process_accessibility_issues(df):
             issue = issue.strip()
             if not issue:
                 continue
-            
-            # Try different regex patterns to handle various formats
-            
-            # Pattern 1: Issue Name (Score: XX.XX, Severity: YYY)
+                
+            # Use regex to extract the issue name, score, and severity
             match = re.match(r'(.*?)\s*\(Score:\s*([\d.]+),\s*Severity:\s*(\w+)\)', issue)
             if match:
                 issue_name = match.group(1).strip()
                 score = match.group(2)
                 severity = match.group(3)
-            else:
-                # Pattern 2: Issue Name (Score: XX.XX)
-                match = re.match(r'(.*?)\s*\(Score:\s*([\d.]+)\)', issue)
-                if match:
-                    issue_name = match.group(1).strip()
-                    score = match.group(2)
-                    severity = "Unknown"
-                else:
-                    # Pattern 3: Just use the entire text as the issue name
-                    issue_name = issue.strip()
-                    score = "N/A"
-                    severity = "Unknown"
-            
-            # Create the combined value with score and severity
-            value = f"{score};{severity}"
-            
-            # Create or update the dictionary entry for this issue
-            if issue_name not in all_issues:
-                all_issues[issue_name] = {}
-            
-            all_issues[issue_name][idx] = value
+                
+                # Create the combined value with score and severity
+                value = f"{score};{severity}"
+                
+                # Create or update the dictionary entry for this issue
+                if issue_name not in all_issues:
+                    all_issues[issue_name] = {}
+                
+                all_issues[issue_name][idx] = value
     
     # Create a new column for each unique issue type
     for issue_name, values in all_issues.items():
-        # Clean up the column name to make it a valid DataFrame column
-        column_name = issue_name.replace(' ', '_').replace('`', '').replace('\'', '').replace('"', '').replace('.', '')
+        column_name = issue_name.replace(' ', '_').replace('`', '').replace('\'', '').replace('"', '')
         # Limit column name length to avoid overly long names
         if len(column_name) > 63:
             column_name = column_name[:60] + '...'
@@ -487,4 +472,64 @@ if __name__ == "__main__":
             print(f"Removed intermediate file: {summary_file}")
             
     except Exception as e:
-        print(f"Error processing accessibility issues: {e}") 
+        print(f"Error processing accessibility issues: {e}")
+
+# The following code is the standalone version that matches exactly what was requested
+# It can be used directly if needed:
+
+"""
+def process_accessibility_issues(df):
+
+    # Create a copy of the input DataFrame to avoid modifying the original
+    result_df = df.copy()
+    
+    # Check if the required column exists
+    if 'Accessibility_Issues_Details' not in result_df.columns:
+        print("Column 'Accessibility_Issues_Details' not found in the DataFrame")
+        return result_df
+    
+    # Dictionary to store all extracted issues and their scores/severity
+    all_issues = {}
+    
+    # Process each row in the DataFrame
+    for idx, row in result_df.iterrows():
+        # Skip rows with NaN values in the Accessibility_Issues_Details column
+        if pd.isna(row['Accessibility_Issues_Details']):
+            continue
+            
+        # Split the text by semicolon to separate different issues
+        issues = row['Accessibility_Issues_Details'].split(';')
+        
+        for issue in issues:
+            issue = issue.strip()
+            if not issue:
+                continue
+                
+            # Use regex to extract the issue name, score, and severity
+            match = re.match(r'(.*?)\s*\(Score:\s*([\d.]+),\s*Severity:\s*(\w+)\)', issue)
+            if match:
+                issue_name = match.group(1).strip()
+                score = match.group(2)
+                severity = match.group(3)
+                
+                # Create the combined value with score and severity
+                value = f"{score};{severity}"
+                
+                # Create or update the dictionary entry for this issue
+                if issue_name not in all_issues:
+                    all_issues[issue_name] = {}
+                
+                all_issues[issue_name][idx] = value
+    
+    # Create a new column for each unique issue type
+    for issue_name, values in all_issues.items():
+        column_name = issue_name.replace(' ', '_').replace('`', '').replace('\'', '').replace('"', '')
+        result_df[column_name] = pd.Series(values)
+    
+    return result_df
+
+input_file = "lighthouse_scores_optimized.xlsx"
+df = pd.read_excel(input_file)
+result_df = process_accessibility_issues(df)
+result_df.to_excel('output_file2.xlsx', index=False)
+""" 
