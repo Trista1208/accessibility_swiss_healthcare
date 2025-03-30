@@ -461,7 +461,9 @@ if __name__ == "__main__":
     cleaned_df, output_file, summary_file = clean_lighthouse_data(input_file)
     print(f"\nData cleaning completed! Files created:")
     print(f"1. {output_file} - Optimized data with specific column names")
-    print(f"2. {summary_file} - Summary with just the most essential information")
+    
+    # Don't create summary file to reduce the number of output files
+    # We'll just keep the final processed file with extracted issues
     
     # Now process the accessibility issues from the optimized file
     print("\nProcessing accessibility issues from optimized data...")
@@ -469,8 +471,20 @@ if __name__ == "__main__":
         input_file = output_file  # Use the optimized file as input
         df = pd.read_excel(input_file)
         result_df = process_accessibility_issues(df)
-        output_issues_file = 'lighthouse_scores_with_extracted_issues.xlsx'
-        result_df.to_excel(output_issues_file, index=False)
-        print(f"3. {output_issues_file} - Optimized data with extracted accessibility issues")
+        
+        # Use a single final output file instead of multiple intermediate files
+        final_output_file = 'lighthouse_accessibility_data.xlsx'
+        result_df.to_excel(final_output_file, index=False)
+        print(f"2. {final_output_file} - Final data with extracted accessibility issues")
+        
+        # Clean up intermediate files if they exist
+        if os.path.exists(output_file) and output_file != final_output_file:
+            os.remove(output_file)
+            print(f"Removed intermediate file: {output_file}")
+        
+        if os.path.exists(summary_file):
+            os.remove(summary_file)
+            print(f"Removed intermediate file: {summary_file}")
+            
     except Exception as e:
         print(f"Error processing accessibility issues: {e}") 
