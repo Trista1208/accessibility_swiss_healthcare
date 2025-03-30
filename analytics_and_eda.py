@@ -6,12 +6,16 @@ from datetime import datetime
 import os
 import matplotlib.gridspec as gridspec
 
-# Set plot style and configuration
+# Set plot style and configuration with red and dark blue color palette
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set(font_scale=1.2)
 plt.rcParams['figure.figsize'] = (12, 8)
 plt.rcParams['figure.dpi'] = 100
 plt.rcParams['savefig.dpi'] = 300
+
+# Set custom color palette with red and dark blue
+red_blue_palette = ["#8B0000", "#00008B", "#D21F3C", "#0000CD", "#FF0000", "#0000FF"]
+sns.set_palette(red_blue_palette)
 
 # Create output directory for visualization
 output_dir = "final_accessibility_analysis"
@@ -57,8 +61,8 @@ def analyze_scores(df):
     
     for i, col in enumerate(score_cols):
         plt.subplot(2, 2, i+1)
-        sns.histplot(df[col].dropna(), kde=True, bins=20)
-        plt.axvline(x=90, color='red', linestyle='--', label='Pass threshold (90)')
+        sns.histplot(df[col].dropna(), kde=True, bins=20, color=red_blue_palette[i % len(red_blue_palette)])
+        plt.axvline(x=90, color='#D21F3C', linestyle='--', label='Pass threshold (90)')
         plt.title(f"{col} Distribution")
         plt.xlabel("Score")
         plt.ylabel("Frequency")
@@ -74,8 +78,9 @@ def analyze_scores(df):
     score_corr = df[score_cols].corr()
     mask = np.triu(np.ones_like(score_corr, dtype=bool))
     
+    # Use a red-blue colormap
     sns.heatmap(score_corr, annot=True, mask=mask, vmin=-1, vmax=1, 
-                cmap='coolwarm', fmt='.2f', linewidths=1)
+                cmap='RdBu_r', fmt='.2f', linewidths=1)
     
     plt.title("Score Correlations")
     plt.tight_layout()
@@ -164,19 +169,19 @@ def analyze_accessibility_issues(df):
         plt.figure(figsize=(14, 10))
         
         # Get data for plotting
-        issues = [issue for issue, _ in sorted_issues[:15]]  # Top 15 for visualization
-        counts = [count for _, count in sorted_issues[:15]]
+        issues = [issue for issue, _ in sorted_issues[:10]]  # Top 10 for visualization
+        counts = [count for _, count in sorted_issues[:10]]
         
         # Create horizontal bar chart
-        bars = plt.barh([issue[:50] + '...' if len(issue) > 50 else issue for issue in issues][::-1], 
-                        counts[::-1], color='coral')
+        bars = plt.barh([issue[:40] + '...' if len(issue) > 40 else issue for issue in issues][::-1], 
+                        counts[::-1], color='#8B0000')
         
         # Add count labels
         for bar in bars:
             width = bar.get_width()
             label_x_pos = width + 1
             plt.text(label_x_pos, bar.get_y() + bar.get_height()/2, str(int(width)),
-                    va='center')
+                    va='center', color='#00008B')
         
         plt.xlabel('Number of Occurrences')
         plt.title('Most Common Accessibility Issues')
@@ -192,7 +197,7 @@ def analyze_accessibility_issues(df):
         pass_counts = df['AccessibilityResult'].value_counts()
         
         plt.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
-                colors=['#ff9999','#66b3ff'])
+                colors=['#8B0000','#00008B'])
         plt.title("Accessibility Pass/Fail Distribution")
         plt.axis('equal')
         
@@ -274,11 +279,11 @@ def analyze_keyboard_focus_accessibility(df):
         pass_rate_values = [pass_rates[col] for col in cols_to_plot]
         
         # Create horizontal bar chart
-        bars = plt.barh(col_names, pass_rate_values, color='skyblue')
+        bars = plt.barh(col_names, pass_rate_values, color='#00008B')
         
         for bar in bars:
             width = bar.get_width()
-            plt.text(width + 1, bar.get_y() + bar.get_height()/2, f"{width:.1f}%", va='center')
+            plt.text(width + 1, bar.get_y() + bar.get_height()/2, f"{width:.1f}%", va='center', color='#8B0000')
         
         plt.xlabel('Pass Rate (%)')
         plt.title('Keyboard Focus Accessibility Pass Rates')
@@ -322,19 +327,20 @@ def create_accessibility_dashboard(df):
     """Create a simplified dashboard with key accessibility insights"""
     print("\n===== CREATING ACCESSIBILITY DASHBOARD =====")
     
-    # Create figure with subplots
+    # Create figure with subplots - reduce to 2x2 grid
     fig = plt.figure(figsize=(16, 12))
-    gs = gridspec.GridSpec(3, 2, figure=fig)
+    gs = gridspec.GridSpec(2, 2, figure=fig)
     
     # 1. Score Distribution Plot
     ax_scores = fig.add_subplot(gs[0, 0])
     
     # Get score columns
     score_cols = [col for col in df.columns if 'Score' in col and col != 'AccessibilityResult']
-    for col in score_cols:
-        sns.kdeplot(df[col].dropna(), ax=ax_scores, label=col.replace('_Score', ''))
+    for i, col in enumerate(score_cols):
+        sns.kdeplot(df[col].dropna(), ax=ax_scores, label=col.replace('_Score', ''), 
+                   color=red_blue_palette[i % len(red_blue_palette)])
     
-    ax_scores.axvline(x=90, color='red', linestyle='--', label='Pass threshold (90)')
+    ax_scores.axvline(x=90, color='#D21F3C', linestyle='--', label='Pass threshold (90)')
     ax_scores.set_title('Score Distributions')
     ax_scores.set_xlabel('Score')
     ax_scores.set_ylabel('Density')
@@ -346,7 +352,7 @@ def create_accessibility_dashboard(df):
     if 'AccessibilityResult' in df.columns:
         pass_counts = df['AccessibilityResult'].value_counts()
         ax_pass_fail.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
-                colors=['#ff9999','#66b3ff'])
+                colors=['#8B0000','#00008B'])
         ax_pass_fail.set_title('Accessibility Pass/Fail Distribution')
         ax_pass_fail.axis('equal')
     
@@ -379,55 +385,25 @@ def create_accessibility_dashboard(df):
         # Sort and plot top issues
         if issue_counts:
             sorted_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)
-            top_issues = sorted_issues[:8]  # Top 8 issues
+            top_issues = sorted_issues[:5]  # Top 5 issues
             
             issues = [issue[:30] + '...' if len(issue) > 30 else issue for issue, _ in top_issues]
             counts = [count for _, count in top_issues]
             
-            bars = ax_issues.barh(issues[::-1], counts[::-1], color='coral')
+            bars = ax_issues.barh(issues[::-1], counts[::-1], color='#8B0000')
             
             # Add count labels
             for bar in bars:
                 width = bar.get_width()
                 label_x_pos = width + 1
                 ax_issues.text(label_x_pos, bar.get_y() + bar.get_height()/2, str(int(width)),
-                       va='center')
+                       va='center', color='#00008B')
             
             ax_issues.set_title('Most Common Accessibility Issues')
             ax_issues.set_xlabel('Number of Sites')
     
-    # 4. Keyboard Focus Testing
-    ax_keyboard = fig.add_subplot(gs[1, 1])
-    
-    # Find keyboard focus columns
-    keyboard_cols = [col for col in df.columns if 'keyboard' in col.lower() or 'focus' in col.lower()]
-    
-    if keyboard_cols:
-        # Count sites with keyboard data
-        df_focus = df.copy()
-        for col in keyboard_cols:
-            df_focus[col] = df_focus[col].fillna('Not Tested')
-        
-        has_keyboard_data = df_focus[keyboard_cols].apply(lambda x: x != 'Not Tested').any(axis=1)
-        sites_with_data = has_keyboard_data.sum()
-        sites_without_data = len(df) - sites_with_data
-        
-        # Create donut chart showing tested vs untested
-        data = [sites_with_data, sites_without_data]
-        labels = [f'Tested ({sites_with_data})', f'Not Tested ({sites_without_data})']
-        
-        # Create a donut chart
-        ax_keyboard.pie(data, labels=labels, autopct='%1.1f%%', startangle=90,
-               colors=['#66b3ff', '#d9d9d9'])
-        # Add a circle in the middle to create a donut
-        centre_circle = plt.Circle((0,0), 0.7, fc='white')
-        ax_keyboard.add_patch(centre_circle)
-        
-        ax_keyboard.set_title('Keyboard Focus Accessibility Testing Coverage')
-        ax_keyboard.axis('equal')
-    
-    # 5. Severity Distribution
-    ax_severity = fig.add_subplot(gs[2, :])
+    # 4. Severity Distribution
+    ax_severity = fig.add_subplot(gs[1, 1])
     
     # Extract severity information from keyboard focus column if available
     keyboard_focus_col = next((col for col in df.columns if 'keyboard' in col.lower() and 'focusable' in col.lower()), None)
@@ -453,7 +429,7 @@ def create_accessibility_dashboard(df):
         
         if non_zero:
             # Define colors for different severity levels
-            colors = {'High': '#FF5252', 'Medium': '#FFA726', 'Low': '#66BB6A', 'Unknown': '#E0E0E0'}
+            colors = {'High': '#8B0000', 'Medium': '#D21F3C', 'Low': '#00008B', 'Unknown': '#808080'}
             
             # Create horizontal bar chart
             severity_labels = list(non_zero.keys())
@@ -474,7 +450,7 @@ def create_accessibility_dashboard(df):
             for bar in bars:
                 width = bar.get_width()
                 ax_severity.text(width + 0.5, bar.get_y() + bar.get_height()/2, 
-                               str(int(width)), va='center')
+                               str(int(width)), va='center', color='#00008B')
             
             ax_severity.set_title('Accessibility Issues by Severity')
             ax_severity.set_xlabel('Number of Issues')
@@ -693,50 +669,31 @@ def analyze_severity_distribution(df):
             # Create a more detailed visualization
             plt.figure(figsize=(14, 10))
             
-            # Set up a 2x1 subplot grid
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+            # Create a single figure with a pie chart
+            plt.figure(figsize=(12, 9))
             
-            # 1. Pie chart for severity distribution
-            colors = {'High': '#FF5252', 'Medium': '#FFA726', 'Low': '#66BB6A', 'Unknown': '#E0E0E0'}
+            # Define colors for severity levels using red and blue palette
+            colors = {'High': '#8B0000', 'Medium': '#D21F3C', 'Low': '#00008B', 'Unknown': '#808080'}
             sorted_data = sorted(severity_data.items(), 
-                              key=lambda x: {'High': 0, 'Medium': 1, 'Low': 2, 'Unknown': 3}.get(x[0], 4))
+                               key=lambda x: {'High': 0, 'Medium': 1, 'Low': 2, 'Unknown': 3}.get(x[0], 4))
             labels = [f"{k} ({v})" for k, v in sorted_data]
             sizes = [v for _, v in sorted_data]
             
             # Explode the high severity slice
             explode = [0.1 if k == 'High' else 0.05 if k == 'Medium' else 0 for k, _ in sorted_data]
             
-            ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%', startangle=90,
+            plt.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%', startangle=90,
                    colors=[colors.get(k, '#BDBDBD') for k, _ in sorted_data], shadow=True)
-            ax1.axis('equal')
-            ax1.set_title('Keyboard Focus Issues by Severity', fontsize=14)
-            
-            # 2. Bar chart showing severity counts
-            bars = ax2.bar(
-                [k for k, _ in sorted_data],
-                [v for _, v in sorted_data],
-                color=[colors.get(k, '#BDBDBD') for k, _ in sorted_data]
-            )
-            
-            # Add count labels above bars
-            for bar in bars:
-                height = bar.get_height()
-                ax2.text(bar.get_x() + bar.get_width()/2., height + 0.1,
-                        f'{int(height)}', ha='center', va='bottom', fontsize=12)
-            
-            ax2.set_title('Severity Count Distribution', fontsize=14)
-            ax2.set_xlabel('Severity Level', fontsize=12)
-            ax2.set_ylabel('Number of Issues', fontsize=12)
-            ax2.grid(axis='y', alpha=0.3)
+            plt.axis('equal')
+            plt.title('Keyboard Focus Issues by Severity', fontsize=16)
             
             # Improve overall appearance
-            plt.suptitle('Accessibility Issue Severity Analysis', fontsize=16, y=0.98)
-            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            plt.tight_layout()
             
             # Save the plot
             file_path = os.path.join(output_dir, "severity_distribution.png")
             plt.savefig(file_path, dpi=300, bbox_inches='tight')
-            print(f"Saved detailed severity distribution to {file_path}")
+            print(f"Saved severity distribution to {file_path}")
             
             return severity_data
     
@@ -750,52 +707,6 @@ def analyze_severity_distribution(df):
                 if isinstance(val, str) and ('severity' in val.lower() or 'high' in val.lower() or 'medium' in val.lower()):
                     # Found severity info in this column
                     return analyze_embedded_severity(df, col)
-    
-    # If we didn't find embedded severity, look for explicit severity columns
-    potential_severity_cols = []
-    for col in df.columns:
-        col_lower = col.lower()
-        if ('severity' in col_lower or 
-            'impact' in col_lower or 
-            'priority' in col_lower or
-            ('issue' in col_lower and ('type' in col_lower or 'level' in col_lower))):
-            potential_severity_cols.append(col)
-    
-    if potential_severity_cols:
-        severity_col = potential_severity_cols[0]  # Use the first one
-        print(f"\nAnalyzing severity from column: {severity_col}")
-        
-        if df[severity_col].dtype == 'object':
-            # If it's a string column, count by category
-            severity_counts = df[severity_col].value_counts()
-            
-            # Print counts
-            print("\nSeverity Distribution:")
-            for severity, count in severity_counts.items():
-                percent = count / severity_counts.sum() * 100
-                print(f"- {severity}: {count} issues ({percent:.1f}%)")
-            
-            # Create a visualization of the severity distribution
-            plt.figure(figsize=(12, 8))
-            
-            # Create bar chart
-            ax = severity_counts.plot(kind='bar', color='skyblue')
-            plt.title('Issue Severity Distribution')
-            plt.xlabel('Severity')
-            plt.ylabel('Count')
-            
-            # Add value labels
-            for i, v in enumerate(severity_counts):
-                ax.text(i, v + 0.1, str(v), ha='center')
-            
-            plt.tight_layout()
-            
-            # Save visualization
-            file_path = os.path.join(output_dir, "severity_distribution.png")
-            plt.savefig(file_path)
-            print(f"Saved severity distribution to {file_path}")
-            
-            return severity_counts.to_dict()
     
     # If we couldn't find severity information, create a proxy from accessibility score
     print("\nNo explicit severity information found. Creating a proxy visualization using Accessibility Score.")
@@ -819,7 +730,7 @@ def analyze_severity_distribution(df):
         plt.figure(figsize=(12, 8))
         
         # Create bar chart with custom colors
-        colors = ['crimson', 'orange', 'gold', 'lightgreen']
+        colors = ['#8B0000', '#D21F3C', '#0000CD', '#00008B']
         ax = severity_counts.plot(kind='bar', color=colors[:len(severity_counts)])
         plt.title('Sites by Accessibility Severity Level (Based on Score)')
         plt.xlabel('Severity Level')
@@ -874,8 +785,8 @@ def analyze_embedded_severity(df, column):
         # Create a visualization of the severity distribution
         plt.figure(figsize=(12, 8))
         
-        # Create pie chart
-        colors = {'High': 'crimson', 'Medium': 'orange', 'Low': 'lightgreen', 'Unknown': 'lightgray'}
+        # Create pie chart with red and blue color scheme
+        colors = {'High': '#8B0000', 'Medium': '#D21F3C', 'Low': '#00008B', 'Unknown': '#808080'}
         
         # Filter out zero counts to avoid empty slices
         non_zero_counts = {k: v for k, v in severity_counts.items() if v > 0}
