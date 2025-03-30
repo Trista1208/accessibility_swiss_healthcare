@@ -187,7 +187,7 @@ def analyze_accessibility_issues(df):
     
     # Create pass/fail distribution visualization
     if 'AccessibilityResult' in df.columns:
-        plt.figure(figsize=(8, 8))
+        plt.figure(figsize=(10, 10))  # Larger figure
         pass_counts = df['AccessibilityResult'].value_counts()
         
         # Get actual counts for annotations
@@ -196,31 +196,58 @@ def analyze_accessibility_issues(df):
         total_count = pass_count + fail_count
         
         # Create pie chart with detailed labels
-        wedges, texts, autotexts = plt.pie(pass_counts, labels=pass_counts.index, 
-                autopct='%1.1f%%', startangle=90,
-                colors=['#8B0000','#00008B'], textprops={'color': 'white', 'fontweight': 'bold'})
+        wedges, _ = plt.pie(  # Note: only need to capture wedges
+            pass_counts, 
+            labels=None,  # Remove default labels, we'll add custom ones
+            autopct=None,  # Remove default percentage, we'll add custom ones
+            startangle=90,
+            colors=['#8B0000','#00008B'], 
+            wedgeprops={'edgecolor': 'white', 'linewidth': 1.5}
+        )
         
-        # Add count information inside the wedges
+        # Add custom labels with pass/fail status, count and percentage
         for i, wedge in enumerate(wedges):
             count = pass_count if i == 1 else fail_count  # Adjust based on your data order
+            pct = 100 * count / total_count
+            status = "PASS" if i == 1 else "FAIL"
+            
             ang = (wedge.theta2 - wedge.theta1) / 2. + wedge.theta1
             y = np.sin(np.deg2rad(ang))
             x = np.cos(np.deg2rad(ang))
             
-            # Determine text color based on background
-            plt.annotate(f'{count} sites', 
-                     xy=(x * 0.5, y * 0.5),  # Use radius of 0.5 to place inside
-                     ha='center', va='center',
-                     fontsize=10, fontweight='bold',
-                     color='white')
+            # Status label (PASS/FAIL)
+            plt.annotate(
+                status, 
+                xy=(x * 0.4, y * 0.4),  # Position closer to center
+                ha='center', va='center',
+                fontsize=16, fontweight='bold',  # Larger font
+                color='white'
+            )
+            
+            # Count and percentage
+            plt.annotate(
+                f"{count} sites\n({pct:.1f}%)", 
+                xy=(x * 0.7, y * 0.7),  # Position further from center
+                ha='center', va='center',
+                fontsize=14, fontweight='bold',  # Larger font
+                color='white'
+            )
                 
         plt.axis('equal')
-        plt.title('Accessibility Pass/Fail Distribution\n(≥90 score is passing)', fontsize=14)
-        plt.figtext(0.5, 0.01, 'Shows percentage of sites passing accessibility standards',
-                   ha='center', fontsize=10, fontstyle='italic')
+        plt.title('Accessibility Pass/Fail Distribution\n(≥90 score is passing)', fontsize=16)
+        
+        # Move explanation text to a better position
+        plt.figtext(
+            0.5, 0.01, 
+            'Shows percentage of sites passing accessibility standards',
+            ha='center', 
+            fontsize=12,  # Larger font
+            fontstyle='italic',
+            bbox={'facecolor': 'white', 'alpha': 0.7, 'pad': 5}
+        )
         
         file_path = os.path.join(output_dir, "pass_fail_distribution.png")
-        plt.savefig(file_path)
+        plt.savefig(file_path, bbox_inches='tight', dpi=300)
         print(f"Saved pass/fail distribution to {file_path}")
     
     # Return the dictionary rather than the sorted list for compatibility with existing functions
@@ -290,36 +317,58 @@ def create_accessibility_dashboard(df):
         # Get actual counts for annotations
         pass_count = pass_counts.get('Pass', 0)
         fail_count = pass_counts.get('Fail', 0)
+        total_count = pass_count + fail_count
         
-        # Create pie chart
-        wedges, texts, autotexts = ax_pass_fail.pie(
+        # Create pie chart without default labels
+        wedges, _ = ax_pass_fail.pie(  # Note: only need to capture wedges
             pass_counts, 
-            labels=pass_counts.index, 
-            autopct='%1.1f%%', 
+            labels=None,  # Remove default labels
+            autopct=None,  # Remove default percentage
             startangle=90,
-            colors=['#8B0000','#00008B'], 
-            textprops={'color': 'white', 'fontweight': 'bold'}
+            colors=['#8B0000','#00008B'],
+            wedgeprops={'edgecolor': 'white', 'linewidth': 1.5}
         )
         
-        # Add count information inside the wedges
+        # Add custom labels with pass/fail status, count and percentage
         for i, wedge in enumerate(wedges):
-            count = pass_count if i == 1 else fail_count  # Adjust based on your data order
+            count = pass_count if i == 1 else fail_count
+            pct = 100 * count / total_count
+            status = "PASS" if i == 1 else "FAIL"
+            
             ang = (wedge.theta2 - wedge.theta1) / 2. + wedge.theta1
             y = np.sin(np.deg2rad(ang))
             x = np.cos(np.deg2rad(ang))
             
-            ax_pass_fail.annotate(f'{count} sites', 
-                              xy=(x * 0.5, y * 0.5),  # Use radius of 0.5 to place inside
-                              ha='center', va='center',
-                              fontsize=9, fontweight='bold',
-                              color='white')
-                
-        ax_pass_fail.set_title('Accessibility Pass/Fail Distribution (≥90)')
+            # Status label (PASS/FAIL)
+            ax_pass_fail.annotate(
+                status, 
+                xy=(x * 0.4, y * 0.4),  # Position closer to center
+                ha='center', va='center',
+                fontsize=14, fontweight='bold',  # Larger font
+                color='white'
+            )
+            
+            # Count and percentage
+            ax_pass_fail.annotate(
+                f"{count} sites\n({pct:.1f}%)", 
+                xy=(x * 0.7, y * 0.7),  # Position further from center
+                ha='center', va='center',
+                fontsize=11, fontweight='bold',
+                color='white'
+            )
+        
+        ax_pass_fail.set_title('Accessibility Pass/Fail Distribution (≥90)', fontsize=14)
         ax_pass_fail.axis('equal')
         
-        # Add descriptive text
-        ax_pass_fail.text(0, -1.3, 'Proportion of sites meeting accessibility standards', 
-                        ha='center', fontsize=9, fontstyle='italic')
+        # Add descriptive text with background for better readability
+        ax_pass_fail.text(
+            0, -1.3, 
+            'Proportion of sites meeting accessibility standards', 
+            ha='center', 
+            fontsize=10, 
+            fontstyle='italic',
+            bbox={'facecolor': 'white', 'alpha': 0.7, 'pad': 5}
+        )
     
     # 3. Top Issues Bar Chart
     ax_issues = fig.add_subplot(gs[1, 0])
@@ -664,52 +713,69 @@ def analyze_severity_distribution(df):
             print(f"\nSeverity from {tested_sites} sites: {', '.join([f'{k}: {v}' for k, v in severity_data.items()])}")
             
             # Create a single figure with a pie chart
-            plt.figure(figsize=(12, 9))
+            plt.figure(figsize=(12, 10))  # Larger figure
             
             # Define colors for severity levels using red and blue palette
             colors = {'High': '#8B0000', 'Medium': '#D21F3C', 'Low': '#00008B', 'Unknown': '#808080'}
             sorted_data = sorted(severity_data.items(), 
                                key=lambda x: {'High': 0, 'Medium': 1, 'Low': 2, 'Unknown': 3}.get(x[0], 4))
-            labels = [f"{k}" for k, _ in sorted_data]  # Simplify main labels
-            sizes = [v for _, v in sorted_data]
             
-            # Explode the high severity slice
-            explode = [0.1 if k[0] == 'High' else 0.05 if k[0] == 'Medium' else 0 for k in sorted_data]
-            
-            # Create pie chart
-            wedges, texts, autotexts = plt.pie(
-                sizes, 
-                explode=explode, 
-                labels=labels, 
-                autopct='%1.1f%%', 
+            # Create pie chart without default labels and percentages
+            wedges, _ = plt.pie(  # Note: only need to capture wedges
+                [v for _, v in sorted_data], 
+                explode=[0.1 if k[0] == 'High' else 0.05 if k[0] == 'Medium' else 0 for k in sorted_data],
+                labels=None,  # Remove default labels
+                autopct=None,  # Remove default percentages
                 startangle=90,
                 colors=[colors.get(k, '#BDBDBD') for k, _ in sorted_data], 
-                shadow=True, 
-                textprops={'color': 'white', 'fontweight': 'bold'}
+                shadow=True,
+                wedgeprops={'edgecolor': 'white', 'linewidth': 1}
             )
             
-            # Add count inside each wedge
+            # Add custom labels with severity level, count and percentage
             for i, (k, v) in enumerate(sorted_data):
                 ang = (wedges[i].theta2 - wedges[i].theta1) / 2. + wedges[i].theta1
                 y = np.sin(np.deg2rad(ang))
                 x = np.cos(np.deg2rad(ang))
+                pct = 100 * v / sum(v for _, v in sorted_data)
                 
                 # Adjust radius based on the wedge size
-                radius = 0.5
-                if v / sum(sizes) < 0.1:  # For very small wedges
-                    radius = 0.7
+                severity_radius = 0.35  # For severity label (closer to center)
+                count_radius = 0.7     # For count and percentage (further from center)
                 
-                # Add count inside
-                plt.annotate(f'{v} sites', 
-                         xy=(x * radius, y * radius),
-                         ha='center', va='center',
-                         fontsize=9, fontweight='bold',
-                         color='white')
+                if pct < 10:  # For very small wedges
+                    count_radius = 0.85
+                
+                # Add severity level
+                plt.annotate(
+                    k.upper(), 
+                    xy=(x * severity_radius, y * severity_radius),
+                    ha='center', va='center',
+                    fontsize=14, fontweight='bold',  # Larger font
+                    color='white'
+                )
+                
+                # Add count and percentage
+                plt.annotate(
+                    f"{v} sites\n({pct:.1f}%)", 
+                    xy=(x * count_radius, y * count_radius),
+                    ha='center', va='center',
+                    fontsize=12, fontweight='bold',  # Larger font
+                    color='white'
+                )
             
             plt.axis('equal')
-            plt.title('Keyboard Focus Issues by Severity', fontsize=16)
-            plt.figtext(0.5, 0.01, 'Distribution of keyboard focus issues by severity level\nHelps prioritize remediation efforts', 
-                        ha='center', fontsize=10, fontstyle='italic')
+            plt.title('Keyboard Focus Issues by Severity', fontsize=18)
+            
+            # Move explanation text to a better position with background
+            plt.figtext(
+                0.5, 0.01, 
+                'Distribution of keyboard focus issues by severity level\nHelps prioritize remediation efforts',
+                ha='center', 
+                fontsize=12,  # Larger font
+                fontstyle='italic',
+                bbox={'facecolor': 'white', 'alpha': 0.7, 'pad': 5}
+            )
             
             # Improve overall appearance
             plt.tight_layout()
