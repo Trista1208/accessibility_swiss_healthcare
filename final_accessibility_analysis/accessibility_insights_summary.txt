@@ -4,11 +4,10 @@ HEALTHCARE WEBSITE ACCESSIBILITY ANALYSIS
 KEY INSIGHTS:
 1. Only 48.9% of analyzed healthcare websites pass accessibility standards (score ≥90).
 2. The average accessibility score is 88.1/100, indicating significant room for improvement.
-3. Websites have an average of 10.3 accessibility issues that need to be addressed.
+3. Websites have an average of 3.2 accessibility issues that need to be addressed.
 4. There is a 41.0-point difference between the best and worst performing domains.
-5. No sites had zero detected accessibility issues.
-6. The most common accessibility issue is 'Time to Interactive', found on 86 sites.
-7. 7 websites (PDFs and non-HTML content) were excluded from the analysis.
+6. 0 sites (0.0%) have no detected accessibility issues.
+6. The most common accessibility issue is 'High Severity Issues', found on 92 sites.
 
 
 RECOMMENDATIONS:
@@ -23,4 +22,4 @@ ANALYSIS SUMMARY:
 - Total websites analyzed: 92
 - Websites passing accessibility standards: 45 (48.9%)
 - Average accessibility score: 88.1/100
-- Average number of issues per site: 10.3
+- Average number of issues per site: 3.2

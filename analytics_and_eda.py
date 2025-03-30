@@ -7,6 +7,7 @@ import os
 from scipy import stats
 import re
 import shutil
+import matplotlib.gridspec as gridspec
 
 # Set plot style and configuration
 plt.style.use('seaborn-v0_8-whitegrid')
@@ -140,84 +141,196 @@ def analyze_domains(df):
     return domain_scores
 
 def analyze_accessibility_issues(df):
-    """Analyze the types and distribution of accessibility issues"""
+    """Analyze accessibility issues to identify patterns and common problems"""
     print("\n===== ACCESSIBILITY ISSUES ANALYSIS =====")
     
-    # Extract accessibility issues if the column exists
-    if 'Accessibility_Issues_Details' in df.columns:
-        # Count the most common issues
-        all_issues = []
-        
-        for issues in df['Accessibility_Issues_Details'].dropna():
-            if pd.isna(issues) or issues == '':
-                continue
-                
-            # Split the issues by semicolon
-            for issue in str(issues).split(';'):
-                # Extract the issue title (before the Score part)
-                title_match = re.search(r'^(.*?)\s*\(Score:', issue.strip())
-                if title_match:
-                    title = title_match.group(1).strip()
-                    all_issues.append(title)
-        
-        # Count issue frequencies
-        issue_counts = pd.Series(all_issues).value_counts()
-        
-        print(f"\nTotal unique issue types: {len(issue_counts)}")
-        print("\nTop 10 most common issues:")
-        for issue, count in issue_counts.head(10).items():
+    # Find issue columns, which could be of different formats in different datasets
+    a11y_cols = []
+    
+    # Look for columns with known issue-related prefixes
+    for col in df.columns:
+        if (col.startswith('A11y_Issue_') or 
+            col.startswith('Accessibility_Issue_') or 
+            'Interactive' in col):
+            a11y_cols.append(col)
+    
+    # If no standard issue columns, check for accessibility details columns
+    if not a11y_cols:
+        for col in df.columns:
+            if 'details' in col.lower() and 'accessibility' in col.lower():
+                a11y_cols.append(col)
+    
+    if not a11y_cols:
+        print("No accessibility issue columns found in the dataset.")
+        return None
+    
+    # Convert the columns to numeric where possible
+    df_numeric = df.copy()
+    
+    for col in a11y_cols:
+        # Try to convert to numeric, setting non-numeric values to NaN
+        if pd.api.types.is_object_dtype(df[col]):
+            try:
+                # For columns with format like "0.72, Severity: Medium", extract the first number
+                if df[col].notna().any() and ',' in str(df[col].iloc[0]):
+                    df_numeric[col] = df[col].apply(
+                        lambda x: float(str(x).split(',')[0]) if pd.notna(x) and ',' in str(x) else np.nan
+                    )
+                else:
+                    # If not in the special format, just try to convert directly
+                    df_numeric[col] = pd.to_numeric(df[col], errors='coerce')
+            except:
+                # If conversion fails, exclude this column from numeric analysis
+                a11y_cols.remove(col)
+    
+    # Count the total number of unique issues
+    issue_count = len(a11y_cols)
+    print(f"\nTotal unique issue types: {issue_count}")
+    
+    if issue_count == 0:
+        print("No valid issue metrics found for analysis.")
+        return None
+    
+    # For numeric issue columns, calculate means
+    numeric_cols = [col for col in a11y_cols if pd.api.types.is_numeric_dtype(df_numeric[col])]
+    
+    # Calculate average values for numeric columns
+    if numeric_cols:
+        issue_means = df_numeric[numeric_cols].mean().sort_values(ascending=False)
+        print("\nAverage values for each issue type:")
+        for issue, mean_val in issue_means.items():
+            if not pd.isna(mean_val):
+                print(f"- {issue.replace('A11y_Issue_', '')}: {mean_val:.2f}")
+    
+    # For categorical issue columns, count occurrence
+    # First, find columns that represent presence/absence of issues
+    issue_counts = {}
+    
+    for col in a11y_cols:
+        # Count non-NaN values as issue instances
+        count = df[col].notna().sum()
+        if count > 0:
+            # Clean up column name for display
+            display_name = col.replace('A11y_Issue_', '').replace('Accessibility_', '').replace('_', ' ')
+            issue_counts[display_name] = count
+    
+    # Sort issues by frequency
+    sorted_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)
+    
+    # Display top 10 issues
+    if sorted_issues:
+        top_n = min(10, len(sorted_issues))
+        print(f"\nTop {top_n} most common issues:")
+        for issue, count in sorted_issues[:top_n]:
             print(f"- {issue}: {count} instances")
+    
+    # Create visualization of common issues
+    if sorted_issues:
+        plt.figure(figsize=(14, 10))
         
-        # Visualize top issues
-        plt.figure(figsize=(14, 8))
-        top_issues = issue_counts.head(10)
-        sns.barplot(x=top_issues.values, y=top_issues.index)
-        plt.title("Top 10 Most Common Accessibility Issues")
-        plt.xlabel("Count")
+        # Get data for plotting
+        issues = [issue for issue, _ in sorted_issues[:15]]  # Top 15 for visualization
+        counts = [count for _, count in sorted_issues[:15]]
+        
+        # Create horizontal bar chart
+        bars = plt.barh([issue[:50] + '...' if len(issue) > 50 else issue for issue in issues][::-1], 
+                        counts[::-1], color='coral')
+        
+        # Add count labels
+        for bar in bars:
+            width = bar.get_width()
+            label_x_pos = width + 1
+            plt.text(label_x_pos, bar.get_y() + bar.get_height()/2, str(int(width)),
+                    va='center')
+        
+        plt.xlabel('Number of Occurrences')
+        plt.title('Most Common Accessibility Issues')
         plt.tight_layout()
         
+        # Save visualization
         file_path = os.path.join(output_dir, "common_issues.png")
         plt.savefig(file_path)
         print(f"Saved common issues analysis to {file_path}")
     
-    # Analyze specific A11y issue columns
-    a11y_cols = [col for col in df.columns if 'A11y_Issue' in col]
-    if a11y_cols:
+    # Analyze specific issue columns for more detailed insights
+    if len(a11y_cols) > 0:
         print(f"\nAnalyzing {len(a11y_cols)} specific accessibility issue columns")
         
-        # Mean values of each issue type
-        issue_means = df[a11y_cols].mean().sort_values(ascending=False)
-        
-        print("\nAverage values for each issue type:")
-        for issue, mean in issue_means.head(5).items():
-            # Clean up the issue name for display
-            issue_name = issue.replace('A11y_Issue_', '').replace('_', ' ')
-            print(f"- {issue_name}: {mean:.2f}")
-        
-        # Visualize issue values
-        plt.figure(figsize=(14, 8))
-        sns.boxplot(data=df[a11y_cols])
-        plt.title("Distribution of Accessibility Issue Values")
-        plt.xticks(rotation=90)
+        # Create visualizations for issue distributions
+        create_issue_distribution_visualizations(df, a11y_cols)
+    
+    return issue_counts
+
+def create_issue_distribution_visualizations(df, issue_columns):
+    """
+    Create visualizations showing the distribution of accessibility issues
+    
+    Args:
+        df: DataFrame with accessibility data
+        issue_columns: List of issue column names to visualize
+    """
+    # Visualize issue distributions
+    plt.figure(figsize=(14, 8))
+    
+    # Prepare data for visualization
+    issue_data = pd.DataFrame()
+    
+    for col in issue_columns:
+        # Skip if not enough non-null values
+        if df[col].notna().sum() < 3:
+            continue
+            
+        # For severity-based columns, try to extract just the numeric score
+        if df[col].dtype == 'object' and df[col].notna().any() and ',' in str(df[col].iloc[df[col].first_valid_index()]):
+            # Try to convert from format like "0.72, Severity: Medium"
+            try:
+                values = df[col].dropna().apply(lambda x: float(str(x).split(',')[0]) if pd.notna(x) else np.nan)
+                if not values.empty:
+                    # Use a shortened column name
+                    short_name = col.replace('Accessibility_', '').replace('A11y_Issue_', '')
+                    short_name = short_name[:20] + '...' if len(short_name) > 20 else short_name
+                    issue_data[short_name] = values
+            except:
+                pass
+        elif pd.api.types.is_numeric_dtype(df[col]):
+            # For already numeric columns
+            short_name = col.replace('Accessibility_', '').replace('A11y_Issue_', '')
+            short_name = short_name[:20] + '...' if len(short_name) > 20 else short_name
+            issue_data[short_name] = df[col]
+    
+    # If we have enough data to plot
+    if not issue_data.empty and issue_data.shape[1] > 0:
+        # Create boxplot or violin plot depending on data volume
+        if issue_data.shape[1] > 5:
+            sns.boxplot(data=issue_data)
+            plt.title("Distribution of Accessibility Issue Scores")
+        else:
+            # For fewer columns, violin plots give more detail
+            sns.violinplot(data=issue_data)
+            plt.title("Distribution of Accessibility Issue Scores (Violin Plot)")
+            
+        plt.ylabel("Score")
+        plt.xticks(rotation=45)
         plt.tight_layout()
         
         file_path = os.path.join(output_dir, "issue_distributions.png")
         plt.savefig(file_path)
         print(f"Saved issue distributions to {file_path}")
     
-    # Analyze pass/fail breakdown
-    plt.figure(figsize=(8, 8))
-    pass_counts = df['AccessibilityResult'].value_counts()
-    plt.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
-           colors=['#ff9999','#66b3ff'])
-    plt.title("Accessibility Pass/Fail Distribution")
-    plt.axis('equal')
-    
-    file_path = os.path.join(output_dir, "pass_fail_distribution.png")
-    plt.savefig(file_path)
-    print(f"Saved pass/fail distribution to {file_path}")
-    
-    return issue_counts if 'issue_counts' in locals() else None
+    # Create pass/fail distribution visualization
+    if 'AccessibilityResult' in df.columns:
+        plt.figure(figsize=(8, 8))
+        pass_counts = df['AccessibilityResult'].value_counts()
+        
+        # Create pie chart
+        plt.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
+                colors=['#ff9999','#66b3ff'])
+        plt.title("Accessibility Pass/Fail Distribution")
+        plt.axis('equal')
+        
+        file_path = os.path.join(output_dir, "pass_fail_distribution.png")
+        plt.savefig(file_path)
+        print(f"Saved pass/fail distribution to {file_path}")
 
 def analyze_keyboard_focus_accessibility(df):
     """Analyze keyboard focus accessibility issues specifically"""
@@ -234,162 +347,230 @@ def analyze_keyboard_focus_accessibility(df):
     for idx, col in enumerate(keyboard_focus_cols):
         print(f"{idx+1}. {col}")
     
-    # Preprocess the columns to handle missing and non-standard values
-    df_processed = df.copy()
+    # Count sites with keyboard focus data
+    has_keyboard_data = df[keyboard_focus_cols].notna().any(axis=1)
+    sites_with_data = has_keyboard_data.sum()
+    percent_with_data = sites_with_data / len(df) * 100
     
-    for col in keyboard_focus_cols:
-        # Convert NaN to 'Not Tested'
-        df_processed[col] = df_processed[col].fillna('Not Tested')
-        
-        # Convert 0.0 values to 'Fail'
-        if df_processed[col].astype(str).isin(['0.0', '0']).any():
-            df_processed[col] = df_processed[col].astype(str).replace({'0.0': 'Fail', '0': 'Fail'})
-        
-        # Convert 1.0 values to 'Pass'
-        if df_processed[col].astype(str).isin(['1.0', '1']).any():
-            df_processed[col] = df_processed[col].astype(str).replace({'1.0': 'Pass', '1': 'Pass'})
+    print(f"\nSites with keyboard focus accessibility data: {sites_with_data} out of {len(df)} ({percent_with_data:.1f}%)")
     
-    # Analyze each keyboard focus column
-    summary_data = []
+    if sites_with_data == 0:
+        print("No keyboard focus accessibility data available for analysis.")
+        return None
     
-    for col in keyboard_focus_cols:
-        print(f"\n{col}:")
-        # Get value counts
-        value_counts = df_processed[col].value_counts(dropna=False)
-        print(value_counts)
-        
-        # Calculate statistics for tested sites (excluding 'Not Tested')
-        tested_df = df_processed[df_processed[col] != 'Not Tested']
-        tested_count = len(tested_df)
-        
-        if tested_count > 0:
-            pass_count = (tested_df[col] == 'Pass').sum()
-            fail_count = (tested_df[col] == 'Fail').sum()
-            
-            # Calculate pass rate among tested sites
-            pass_rate = pass_count / tested_count * 100 if tested_count > 0 else 0
-            print(f"Tested sites: {tested_count} out of {len(df)} ({tested_count/len(df)*100:.1f}%)")
-            print(f"Pass rate: {pass_rate:.1f}% ({pass_count} out of {tested_count} tested sites)")
-            
-            # Add to summary data
-            summary_data.append({
-                'Criterion': col,
-                'Pass Count': pass_count,
-                'Fail Count': fail_count,
-                'Not Tested Count': len(df) - tested_count,
-                'Total Tested': tested_count,
-                'Pass Rate (%)': pass_rate,
-                'Coverage (%)': tested_count / len(df) * 100
-            })
+    # Extract severity information if available
+    interactive_col = next((col for col in keyboard_focus_cols if 'interactive' in col.lower() and 'focusable' in col.lower()), None)
     
-    # Create summary dataframe if we have data
-    if summary_data:
-        summary_df = pd.DataFrame(summary_data)
+    if interactive_col and df[interactive_col].notna().any():
+        # Count by severity
+        severity_data = df[df[interactive_col].notna()][interactive_col].apply(
+            lambda x: x.split(',')[1].strip() if ',' in str(x) else 'Unknown Severity'
+        ).value_counts()
         
-        # Check if we have any tested sites
-        has_tested_data = (summary_df['Total Tested'].sum() > 0)
+        print("\nSeverity distribution for keyboard focusability issues:")
+        for severity, count in severity_data.items():
+            print(f"  - {severity}: {count} sites ({count/sites_with_data*100:.1f}% of tested sites)")
         
-        if has_tested_data:
-            # Calculate overall keyboard focus score
-            if len(summary_df) > 0:
-                avg_pass_rate = summary_df['Pass Rate (%)'].mean()
-                print(f"\nOverall keyboard focus accessibility score: {avg_pass_rate:.1f}%")
-                
-                # Calculate percentage of sites with at least one keyboard focus issue
-                sites_with_any_issue = df_processed[df_processed[keyboard_focus_cols].eq('Fail').any(axis=1)]
-                issue_count = len(sites_with_any_issue)
-                
-                if issue_count > 0:
-                    print(f"Sites with at least one keyboard focus issue: {issue_count} ({issue_count/len(df)*100:.1f}%)")
-                
-                # Calculate testing coverage
-                avg_coverage = summary_df['Coverage (%)'].mean()
-                print(f"Average testing coverage for keyboard focus criteria: {avg_coverage:.1f}%")
-        else:
-            print("\nNo keyboard focus accessibility data available for analysis. Most sites were not tested for these criteria.")
+        # High severity issues deserve special attention
+        high_severity = severity_data.get('Severity: High', 0)
+        if high_severity > 0:
+            print(f"\n⚠️ Warning: {high_severity} sites have high severity keyboard focus issues.")
+            print("These issues severely impact users relying on keyboard navigation.")
     
-    return summary_data
+    # Check WCAG compliance information if available
+    wcag_col = next((col for col in keyboard_focus_cols if 'wcag' in col.lower()), None)
+    
+    if wcag_col and df[wcag_col].notna().any():
+        wcag_criteria = df[df[wcag_col].notna()][wcag_col].value_counts()
+        
+        print("\nWCAG Success Criteria violated:")
+        for criterion, count in wcag_criteria.items():
+            print(f"  - {criterion}: {count} sites")
+    
+    # Calculate overall keyboard focus accessibility insights
+    print("\nKey keyboard focus accessibility insights:")
+    print(f"1. {percent_with_data:.1f}% of sites have keyboard focus accessibility data")
+    
+    if interactive_col and df[interactive_col].notna().any():
+        print(f"2. All sites with keyboard focus data ({sites_with_data}) have keyboard focusability issues")
+        
+        if 'Severity: High' in severity_data:
+            high_percent = severity_data['Severity: High'] / sites_with_data * 100
+            print(f"3. {high_percent:.1f}% of tested sites have high severity keyboard focus issues")
+        
+        not_tested = len(df) - sites_with_data
+        print(f"4. {not_tested} sites ({(not_tested/len(df))*100:.1f}%) were not tested for keyboard focus accessibility")
+    
+    return {
+        'tested_sites': sites_with_data,
+        'percent_tested': percent_with_data,
+        'has_keyboard_issues': sites_with_data if interactive_col else 0
+    }
 
 def create_accessibility_dashboard(df):
-    """Create a comprehensive dashboard of accessibility metrics"""
+    """Create a comprehensive dashboard with key accessibility insights"""
     print("\n===== CREATING ACCESSIBILITY DASHBOARD =====")
     
-    # Create a 3x2 subplot layout
-    fig, axes = plt.subplots(3, 2, figsize=(20, 24))
-    plt.subplots_adjust(hspace=0.4, wspace=0.3)
+    # Create figure with subplots
+    fig = plt.figure(figsize=(18, 14))
+    gs = gridspec.GridSpec(3, 2, figure=fig)
     
-    # 1. Accessibility score distribution
-    sns.histplot(df['Accessibility_Score'].dropna(), kde=True, bins=20, ax=axes[0,0])
-    axes[0,0].axvline(x=90, color='red', linestyle='--', label='Pass threshold (90)')
-    axes[0,0].set_title("Accessibility Score Distribution", fontsize=16)
-    axes[0,0].set_xlabel("Score")
-    axes[0,0].set_ylabel("Frequency")
-    axes[0,0].legend()
+    # 1. Score Distribution Plot
+    ax_scores = fig.add_subplot(gs[0, 0])
     
-    # 2. Pass/Fail pie chart
-    pass_counts = df['AccessibilityResult'].value_counts()
-    axes[0,1].pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
-           colors=['#ff9999','#66b3ff'])
-    axes[0,1].set_title("Accessibility Pass/Fail Distribution", fontsize=16)
-    axes[0,1].axis('equal')
+    # Get score columns
+    score_cols = [col for col in df.columns if 'Score' in col and col != 'AccessibilityResult']
+    for col in score_cols:
+        sns.kdeplot(df[col].dropna(), ax=ax_scores, label=col.replace('_Score', ''))
     
-    # 3. Accessibility vs Performance scatter
-    valid_data = df[['Performance_Score', 'Accessibility_Score']].dropna()
-    if len(valid_data) > 5:
-        sns.scatterplot(x='Performance_Score', y='Accessibility_Score', data=valid_data, ax=axes[1,0])
-        axes[1,0].set_title("Accessibility vs Performance Scores", fontsize=16)
-        axes[1,0].set_xlabel("Performance Score")
-        axes[1,0].set_ylabel("Accessibility Score")
-        
-        # Add reference lines for 90% thresholds
-        axes[1,0].axhline(y=90, color='red', linestyle='--')
-        axes[1,0].axvline(x=90, color='red', linestyle='--')
+    ax_scores.axvline(x=90, color='red', linestyle='--', label='Pass threshold (90)')
+    ax_scores.set_title('Score Distributions')
+    ax_scores.set_xlabel('Score')
+    ax_scores.set_ylabel('Density')
+    ax_scores.legend()
+    
+    # 2. Pass/Fail Pie Chart
+    ax_pass_fail = fig.add_subplot(gs[0, 1])
+    
+    if 'AccessibilityResult' in df.columns:
+        pass_counts = df['AccessibilityResult'].value_counts()
+        ax_pass_fail.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
+                colors=['#ff9999','#66b3ff'])
+        ax_pass_fail.set_title('Accessibility Pass/Fail Distribution')
+        ax_pass_fail.axis('equal')
     else:
-        axes[1,0].text(0.5, 0.5, "Insufficient data for scatter plot", 
-                       horizontalalignment='center', fontsize=14)
+        ax_pass_fail.text(0.5, 0.5, 'No AccessibilityResult data available', 
+                 horizontalalignment='center', verticalalignment='center')
     
-    # 4. Issues count distribution
-    sns.histplot(df['Accessibility_Issues_Count'].dropna(), kde=True, bins=15, ax=axes[1,1])
-    axes[1,1].set_title("Number of Accessibility Issues Distribution", fontsize=16)
-    axes[1,1].set_xlabel("Number of Issues")
-    axes[1,1].set_ylabel("Frequency")
+    # 3. Top Issues Bar Chart
+    ax_issues = fig.add_subplot(gs[1, :])
     
-    # 5. Correlation heatmap for all score columns
-    score_cols = ['Performance_Score', 'Accessibility_Score', 'Best_Practices_Score', 'SEO_Score', 'Accessibility_Issues_Count']
-    score_cols = [col for col in score_cols if col in df.columns]
+    # Find accessibility issue columns
+    a11y_issue_cols = []
     
-    if len(score_cols) > 1:  # Need at least 2 columns for correlation
-        # Calculate correlation with pairwise deletion of missing values
-        corr_data = df[score_cols].dropna()
-        if len(corr_data) > 5:  # Need sufficient data points
-            corr = corr_data.corr()
-            sns.heatmap(corr, annot=True, cmap='coolwarm', vmin=-1, vmax=1, ax=axes[2,0])
-            axes[2,0].set_title("Score Correlations", fontsize=16)
-        else:
-            axes[2,0].text(0.5, 0.5, "Insufficient data for correlation heatmap", 
-                           horizontalalignment='center', fontsize=14)
+    for col in df.columns:
+        col_lower = col.lower()
+        # Look for issue-related columns with various naming patterns
+        if (col.startswith('A11y_Issue_') or 
+            'issue' in col_lower or 
+            'accessibility' in col_lower and ('details' in col_lower or 'error' in col_lower) or
+            'interactive' in col_lower and 'focusable' in col_lower):
+            a11y_issue_cols.append(col)
     
-    # 6. Top accessibility issues
-    a11y_issue_cols = [col for col in df.columns if 'A11y_Issue' in col]
-    
+    # Generate issue counts based on non-null values
     if a11y_issue_cols:
-        # Calculate average value for each issue
-        issue_means = df[a11y_issue_cols].mean().sort_values(ascending=False)
+        issue_counts = {}
         
-        # Take top 10 or all if less than 10
-        top_n = min(10, len(issue_means))
-        top_issues = issue_means.head(top_n)
+        for col in a11y_issue_cols:
+            count = df[col].notna().sum()
+            if count > 0:
+                # Clean up column name for display
+                display_name = col.replace('A11y_Issue_', '').replace('Accessibility_', '').replace('_', ' ')
+                issue_counts[display_name] = count
+                
+        # Sort and plot top issues
+        if issue_counts:
+            sorted_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)
+            top_issues = sorted_issues[:10]  # Top 10 issues
+            
+            issues = [issue[:30] for issue, _ in top_issues]
+            counts = [count for _, count in top_issues]
+            
+            bars = ax_issues.barh(issues[::-1], counts[::-1], color='coral')
+            
+            # Add count labels
+            for bar in bars:
+                width = bar.get_width()
+                label_x_pos = width + 1
+                ax_issues.text(label_x_pos, bar.get_y() + bar.get_height()/2, str(int(width)),
+                       va='center')
+            
+            ax_issues.set_title('Top 10 Most Common Accessibility Issues')
+            ax_issues.set_xlabel('Number of Sites')
+    else:
+        ax_issues.text(0.5, 0.5, 'No accessibility issue data available', 
+                 horizontalalignment='center', verticalalignment='center')
+    
+    # 4. Accessibility Score vs Number of Issues Scatter Plot
+    ax_correlation = fig.add_subplot(gs[2, 0])
+    
+    if 'Accessibility_Score' in df.columns and 'Accessibility_Issues_Count' in df.columns:
+        issues_col = 'Accessibility_Issues_Count'
         
-        # Clean names for display
-        clean_names = [col.replace('A11y_Issue_', '').replace('_', ' ') for col in top_issues.index]
+        # Create scatter plot
+        sns.regplot(x='Accessibility_Score', y=issues_col, data=df.dropna(subset=['Accessibility_Score', issues_col]), 
+                   ax=ax_correlation, scatter_kws={'alpha':0.6}, line_kws={'color':'red'})
         
-        sns.barplot(x=top_issues.values, y=clean_names, ax=axes[2,1])
-        axes[2,1].set_title("Top Accessibility Issues (Average Values)", fontsize=16)
-        axes[2,1].set_xlabel("Average Value")
+        ax_correlation.set_title('Accessibility Score vs. Number of Issues')
+        ax_correlation.set_xlabel('Accessibility Score')
+        ax_correlation.set_ylabel('Number of Issues')
+    else:
+        ax_correlation.text(0.5, 0.5, 'No accessibility score or issue count data available', 
+                 horizontalalignment='center', verticalalignment='center')
+    
+    # 5. Keyboard Focus Issues
+    ax_keyboard = fig.add_subplot(gs[2, 1])
+    
+    # Find keyboard focus columns
+    keyboard_cols = [col for col in df.columns if 'keyboard' in col.lower() or 'focus' in col.lower()]
+    
+    if keyboard_cols:
+        # Count sites with keyboard data
+        has_keyboard_data = df[keyboard_cols].notna().any(axis=1)
+        sites_with_data = has_keyboard_data.sum()
+        sites_without_data = len(df) - sites_with_data
+        
+        # Create donut chart showing tested vs untested
+        data = [sites_with_data, sites_without_data]
+        labels = [f'Tested ({sites_with_data})', f'Not Tested ({sites_without_data})']
+        
+        # Create a donut chart
+        ax_keyboard.pie(data, labels=labels, autopct='%1.1f%%', startangle=90,
+               colors=['#66b3ff', '#d9d9d9'])
+        # Add a circle in the middle to create a donut
+        centre_circle = plt.Circle((0,0), 0.7, fc='white')
+        ax_keyboard.add_patch(centre_circle)
+        
+        ax_keyboard.set_title('Keyboard Focus Accessibility Testing Coverage')
+        ax_keyboard.axis('equal')
+        
+        # Add text annotation about issues if available
+        if sites_with_data > 0:
+            # Try to find the interactive controls column
+            interactive_col = next((col for col in keyboard_cols if 'interactive' in col.lower() and 'focusable' in col.lower()), None)
+            
+            if interactive_col and df[interactive_col].notna().any():
+                # Count by severity
+                def get_severity(val):
+                    if pd.isna(val):
+                        return np.nan
+                    val_str = str(val)
+                    if 'high' in val_str.lower():
+                        return 'High'
+                    elif 'medium' in val_str.lower():
+                        return 'Medium'
+                    elif 'low' in val_str.lower():
+                        return 'Low'
+                    else:
+                        return 'Unknown'
+                
+                # Add text annotation
+                high_count = df[interactive_col].apply(get_severity).value_counts().get('High', 0)
+                ax_keyboard.annotate(f"⚠️ {high_count} sites have high severity\nkeyboard focus issues",
+                             xy=(0, 0), xytext=(0, 0), textcoords='offset points',
+                             bbox=dict(boxstyle="round,pad=0.5", fc="yellow", alpha=0.8),
+                             ha='center', va='center', fontsize=10)
+    else:
+        ax_keyboard.text(0.5, 0.5, 'No keyboard focus data available', 
+                 horizontalalignment='center', verticalalignment='center')
+    
+    # Adjust layout
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.suptitle('Web Accessibility Dashboard - Swiss Healthcare Websites', fontsize=16, y=0.98)
     
     # Save the dashboard
     file_path = os.path.join(output_dir, "accessibility_dashboard.png")
-    plt.savefig(file_path, bbox_inches='tight')
+    plt.savefig(file_path)
     print(f"Saved comprehensive dashboard to {file_path}")
 
 def generate_insights(df, score_stats, domain_scores, issue_counts=None):
@@ -426,11 +607,16 @@ def generate_insights(df, score_stats, domain_scores, issue_counts=None):
         no_issues = (df['Accessibility_Issues_Count'] == 0).sum()
         insights.append(f"6. {no_issues} sites ({no_issues/len(df)*100:.1f}%) have no detected accessibility issues.")
     
-    # Most common issues insight
-    if issue_counts is not None and len(issue_counts) > 0:
-        top_issue = issue_counts.index[0]
-        top_issue_count = issue_counts.iloc[0]
-        insights.append(f"7. The most common accessibility issue is '{top_issue}', found on {top_issue_count} sites.")
+    # Insight 6: Most common issue
+    if issue_counts and len(issue_counts) > 0:
+        # Convert to DataFrame for consistent handling
+        issue_df = pd.DataFrame({'Issue': list(issue_counts.keys()), 'Count': list(issue_counts.values())})
+        issue_df = issue_df.sort_values('Count', ascending=False)
+        
+        if not issue_df.empty:
+            top_issue = issue_df.iloc[0]['Issue']
+            top_issue_count = issue_df.iloc[0]['Count']
+            insights.append(f"6. The most common accessibility issue is '{top_issue}', found on {top_issue_count} sites.")
     
     # Print insights
     print("\nKey Insights:")
@@ -473,119 +659,118 @@ def generate_insights(df, score_stats, domain_scores, issue_counts=None):
     
     return insights, insights_text
 
-def create_comprehensive_insights_summary(df, score_stats, domain_scores, issue_counts, pass_rates):
-    """Create a comprehensive insights summary document with references to visualizations"""
-    print("\n===== CREATING COMPREHENSIVE INSIGHTS SUMMARY =====")
+def create_comprehensive_insights_summary(df, score_stats, domain_scores, issue_counts, pass_rates=None):
+    """Create a comprehensive summary of insights and recommendations"""
+    timestamp = datetime.now().strftime("%B %d, %Y")
     
-    # Create the summary document
-    summary = f"""# HEALTHCARE WEBSITE ACCESSIBILITY ANALYSIS INSIGHTS
-=======================================================
-
-## EXECUTIVE SUMMARY
-
-This analysis evaluated the accessibility of {len(df)} healthcare websites in Switzerland using Lighthouse metrics. 
-Overall, Swiss healthcare websites show moderate accessibility compliance, with significant room for improvement.
-
-## KEY FINDINGS
-
-1. Only {(df['Accessibility_Score'] >= 90).mean() * 100:.1f}% of analyzed healthcare websites pass accessibility standards (score ≥90)
-2. The average accessibility score is {score_stats.loc['mean', 'Accessibility_Score']:.1f}/100
-3. Websites have an average of {df['Accessibility_Issues_Count'].mean():.1f} accessibility issues per site
-4. There is a {domain_scores.max() - domain_scores.min():.1f}-point difference between the best and worst performing domains
-5. Only {(df['Accessibility_Issues_Count'] == 0).sum()/len(df)*100:.1f}% of sites have no detected accessibility issues
-6. Performance metrics are also problematic, with only {pass_rates['Performance_Score']:.1f}% of sites passing performance standards
-7. Best Practices ({pass_rates['Best_Practices_Score']:.1f}% pass) and SEO ({pass_rates['SEO_Score']:.1f}% pass) have better compliance rates
-
-## MOST COMMON ACCESSIBILITY ISSUES
-"""
-
-    # Add most common issues if available
-    if issue_counts is not None and len(issue_counts) > 0:
-        for i, (issue, count) in enumerate(issue_counts.head(10).items(), 1):
-            summary += f"\n{i}. {issue} ({count} instances)"
+    # Convert issue_counts to DataFrame for consistent handling
+    if issue_counts and len(issue_counts) > 0:
+        issue_df = pd.DataFrame({'Issue': list(issue_counts.keys()), 'Count': list(issue_counts.values())})
+        issue_df = issue_df.sort_values('Count', ascending=False)
+    else:
+        issue_df = pd.DataFrame()
     
-    # Add domain analysis
-    summary += "\n\n## DOMAIN ANALYSIS\n\nThe analysis revealed significant variations in accessibility scores across domains, with the lowest-scoring domains being:"
+    # Create the content
+    summary = f"""# SWISS HEALTHCARE WEBSITE ACCESSIBILITY INSIGHTS
+==================================================
+
+## OVERVIEW
+
+This document presents a comprehensive analysis of web accessibility for Swiss healthcare websites based on Google Lighthouse audits. The analysis included {len(df)} websites after excluding websites that were PDFs or non-HTML content that couldn't be properly analyzed by the Lighthouse tool.
+
+## KEY ACCESSIBILITY FINDINGS
+
+1. **Accessibility Compliance**: Only {(df['Accessibility_Score'] >= 90).mean() * 100:.1f}% of healthcare websites pass accessibility standards (score ≥90/100).
+
+2. **Average Performance**:
+   - Average accessibility score: {score_stats.loc['mean', 'Accessibility_Score']:.1f}/100
+   - Average number of accessibility issues: {df['Accessibility_Issues_Count'].mean() if 'Accessibility_Issues_Count' in df.columns else 'N/A'} per site
+
+3. **Domain Performance Discrepancy**:
+   - {score_stats.loc['max', 'Accessibility_Score'] - score_stats.loc['min', 'Accessibility_Score']:.1f}-point gap between best and worst domains
+   - {(df['Accessibility_Issues_Count'] == 0).sum() if 'Accessibility_Issues_Count' in df.columns else 0} websites were found to have zero accessibility issues
+
+4. **Top Accessibility Issues**:"""
+
+    # Add top issues if available
+    if not issue_df.empty:
+        top_issues = min(6, len(issue_df))
+        for i in range(top_issues):
+            issue = issue_df.iloc[i]['Issue']
+            count = issue_df.iloc[i]['Count']
+            summary += f"\n   - {issue} ({count} sites)"
     
-    for domain, score in domain_scores.head(5).items():
-        if not pd.isna(score):
-            summary += f"\n- {domain}: {score:.1f}"
+    # Add keyboard focus section
+    keyboard_cols = [col for col in df.columns if 'keyboard' in str(col).lower() or 'focus' in str(col).lower()]
+    if keyboard_cols:
+        has_keyboard_data = df[keyboard_cols].notna().any(axis=1)
+        sites_with_data = has_keyboard_data.sum()
+        testing_rate = sites_with_data / len(df) * 100
+        
+        summary += f"""
+
+5. **Keyboard Accessibility**:
+   - Only {testing_rate:.1f}% of sites were tested for keyboard focus accessibility
+   - {100.0 - (df[df[keyboard_cols].notna().any(axis=1)][keyboard_cols].isna().all(axis=1).mean() * 100) if sites_with_data > 0 else 0.0:.1f}% pass rate among tested sites for keyboard focus criteria
+   - Most keyboard focus issues were not tested, representing a significant gap"""
     
-    # Add recommendations section
+    # Add performance metrics
+    if pass_rates:
+        summary += f"""
+
+6. **Performance Metrics**:
+   - Performance: Only {pass_rates.get('Performance_Score', 0):.1f}% pass rate
+   - Best Practices: {pass_rates.get('Best_Practices_Score', 0):.1f}% pass rate
+   - SEO: {pass_rates.get('SEO_Score', 0):.1f}% pass rate"""
+
+    # Add recommendations
     summary += """
 
 ## RECOMMENDATIONS
 
-1. **Prioritize Critical Issues**: Focus on fixing the most common accessibility issues identified in this analysis, particularly those that affect core functionality (Time to Interactive, First Contentful Paint).
+1. **Critical Improvements**:
+   - Fix performance issues like Time to Interactive and First Contentful Paint
+   - Add explicit image dimensions
+   - Implement efficient caching policies
+   - Optimize JavaScript loading and execution
 
-2. **Implement Regular Audits**: Establish regular accessibility testing as part of the development and maintenance process. Automated tools combined with manual testing provide the most comprehensive approach.
+2. **Accessibility Standards**:
+   - Adopt and adhere to WCAG 2.1 AA standards
+   - Implement accessibility testing in the development lifecycle
+   - Provide accessibility training for development teams
 
-3. **Adopt WCAG Standards**: Focus on meeting Web Content Accessibility Guidelines (WCAG) 2.1 AA standards, which are recognized internationally as the benchmark for web accessibility.
+3. **Targeted Testing**:
+   - Increase testing coverage for keyboard focus accessibility
+   - Ensure all interactive elements are keyboard accessible
+   - Test with assistive technologies
 
-4. **Training**: Provide accessibility training for web development, design, and content teams to ensure awareness of accessibility requirements during the creation process rather than retrofitting later.
+4. **Monitoring & Maintenance**:
+   - Implement regular accessibility audits
+   - Set benchmarks for improvement over time
+   - Include user testing with people with disabilities
 
-5. **User Testing**: Conduct testing with real users who have disabilities to identify practical accessibility barriers that automated tools might miss.
+## METHODOLOGY NOTE
 
-6. **Performance Optimization**: Improve Time to Interactive and First Contentful Paint metrics by optimizing JavaScript loading, reducing server response times, and implementing efficient caching policies.
+Websites that were PDFs or non-HTML content were excluded from the analysis because they couldn't be properly analyzed by the Lighthouse tool. The final analysis was conducted on the remaining websites.
 
-7. **Image Optimization**: Ensure all images have explicit width and height attributes to reduce layout shifts and improve user experience.
+## CONCLUSION
 
-8. **Standardize Implementation**: Develop accessibility standards and patterns for common website elements to ensure consistency across the website.
+The accessibility of Swiss healthcare websites requires significant improvement. With less than half meeting basic accessibility standards, there is a clear need for healthcare providers to address these issues. Improving accessibility ensures that all users, including those with disabilities, have equal access to vital healthcare information and services.
 
-## IMPACT OF ACCESSIBILITY IMPROVEMENTS
+==================================================
+Report Date: {timestamp}"""
 
-Improving website accessibility in the healthcare sector has significant benefits:
-
-1. **Broader Reach**: Approximately 1 in 5 people have some form of disability. Accessible websites ensure healthcare information reaches all potential patients.
-
-2. **Legal Compliance**: Many jurisdictions require websites to meet certain accessibility standards, reducing legal risk.
-
-3. **Better User Experience**: Accessibility improvements benefit all users, not just those with disabilities.
-
-4. **Improved SEO**: Many accessibility practices also improve search engine rankings.
-
-5. **Ethical Responsibility**: Healthcare providers have a particular obligation to ensure equal access to health information.
-
-## NEXT STEPS
-
-1. Share these findings with stakeholders and website owners
-2. Develop a prioritized remediation plan focusing on the most critical issues
-3. Establish accessibility guidelines for future development
-4. Implement regular monitoring to track improvements
-5. Conduct more in-depth testing of the lowest-performing domains
-
-## METHODOLOGY
-
-This analysis was conducted using Google Lighthouse accessibility audits on healthcare websites in Switzerland. 
-Data was collected and processed through automated scripts, with missing or invalid data appropriately handled. 
-The analysis focused on four key metrics: Performance, Accessibility, Best Practices, and SEO.
-
-## VISUALIZATIONS
-
-The following visualizations were generated as part of this analysis:
-
-1. **Accessibility Dashboard**: Comprehensive overview of key metrics
-2. **Score Distributions**: Distribution of Performance, Accessibility, Best Practices, and SEO scores
-3. **Common Issues**: The most frequently encountered accessibility issues
-4. **Pass/Fail Distribution**: Proportion of websites passing accessibility standards
-5. **Accessibility vs. Issues**: Relationship between accessibility scores and number of issues
-
-=======================================================
-Report generated on: {datetime.now().strftime('%B %d, %Y')}
-Analysis based on Lighthouse audits of {len(df)} Swiss healthcare websites
-"""
-
-    # Save the comprehensive summary
+    # Save to file
     summary_file = "insights_summary.txt"
-    with open(summary_file, "w") as f:
+    with open(summary_file, 'w') as f:
         f.write(summary)
     
-    # Also save it to the output directory
-    output_summary_file = os.path.join(output_dir, "insights_summary.txt")
-    with open(output_summary_file, "w") as f:
+    # Also save a copy to the output directory
+    output_file = os.path.join(output_dir, "insights_summary.txt")
+    with open(output_file, 'w') as f:
         f.write(summary)
     
-    print(f"Saved comprehensive insights summary to {summary_file} and {output_summary_file}")
+    print(f"Saved comprehensive insights summary to {summary_file} and {output_file}")
     
     return summary
 
