@@ -191,7 +191,7 @@ def analyze_accessibility_issues(df):
         pass_counts = df['AccessibilityResult'].value_counts()
         
         plt.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
-                colors=['#8B0000','#00008B'])
+                colors=['#8B0000','#00008B'], textprops={'color': 'white'})
                 
         plt.axis('equal')
         plt.title('Accessibility Pass/Fail Distribution')
@@ -230,35 +230,8 @@ def analyze_keyboard_focus_accessibility(df):
             severity_data = analyze_embedded_severity(df, col)
             break
     
-    # Plot keyboard focus issues
-    if keyboard_cols:
-        # Count values for each keyboard column
-        keyboard_data = {}
-        for col in keyboard_cols:
-            display_name = col.replace('Accessibility_Keyboard_Focus_', '')
-            display_name = display_name.replace('_', ' ')
-            if len(display_name) > 30:
-                display_name = display_name[:27] + '...'
-                
-            # Count non-NaN values
-            count = df[col].notna().sum()
-            if count > 0:
-                keyboard_data[display_name] = count
-        
-        # Create bar chart of keyboard focus issues
-        plt.figure(figsize=(14, 8))
-        keys = list(keyboard_data.keys())
-        values = [keyboard_data[k] for k in keys]
-        
-        plt.bar(keys, values, color='#8B0000')
-        plt.xticks(rotation=45, ha='right')
-        plt.title('Keyboard Focus Accessibility Issues')
-        plt.ylabel('Number of Sites')
-        plt.tight_layout()
-        
-        file_path = os.path.join(output_dir, "keyboard_focus_accessibility.png")
-        plt.savefig(file_path)
-        print(f"Saved keyboard focus accessibility analysis to {file_path}")
+    # Removing keyboard focus plot as requested
+    # No longer creating the keyboard focus accessibility visualization
     
     return {'tested': total_tested, 'issues': keyboard_focus_issues, 'severity': severity_data}
 
@@ -291,7 +264,7 @@ def create_accessibility_dashboard(df):
     if 'AccessibilityResult' in df.columns:
         pass_counts = df['AccessibilityResult'].value_counts()
         ax_pass_fail.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
-                colors=['#8B0000','#00008B'])
+                colors=['#8B0000','#00008B'], textprops={'color': 'white'})
         ax_pass_fail.set_title('Accessibility Pass/Fail Distribution')
         ax_pass_fail.axis('equal')
     
@@ -385,7 +358,7 @@ def create_accessibility_dashboard(df):
             bars = ax_severity.barh(labels, values, 
                                    color=[colors.get(label, '#BDBDBD') for label in labels])
             
-            # Add value labels
+            # Add value labels - make them white when on dark bars
             for bar in bars:
                 width = bar.get_width()
                 ax_severity.text(width + 0.5, bar.get_y() + bar.get_height()/2, 
@@ -651,7 +624,8 @@ def analyze_severity_distribution(df):
             explode = [0.1 if k == 'High' else 0.05 if k == 'Medium' else 0 for k, _ in sorted_data]
             
             plt.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%', startangle=90,
-                   colors=[colors.get(k, '#BDBDBD') for k, _ in sorted_data], shadow=True)
+                   colors=[colors.get(k, '#BDBDBD') for k, _ in sorted_data], shadow=True, 
+                   textprops={'color': 'white'})
             plt.axis('equal')
             plt.title('Keyboard Focus Issues by Severity', fontsize=16)
             
@@ -745,7 +719,8 @@ def analyze_embedded_severity(df, column):
             
             plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90,
                     colors=[colors.get(k, 'gray') for k in non_zero_counts.keys()],
-                    explode=[0.1 if k == 'High' else (0.05 if k == 'Medium' else 0) for k in non_zero_counts.keys()])
+                    explode=[0.1 if k == 'High' else (0.05 if k == 'Medium' else 0) for k in non_zero_counts.keys()],
+                    textprops={'color': 'white'})
             
             plt.axis('equal')
             plt.title(f'Severity Distribution: {column.replace("_", " ")}')

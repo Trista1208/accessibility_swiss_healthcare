@@ -1,17 +1,13 @@
-HEALTHCARE WEBSITE ACCESSIBILITY ANALYSIS
-==================================================
+# Key Accessibility Insights
 
-KEY INSIGHTS:
-1. Only 48.9% of analyzed healthcare websites pass accessibility standards (score ≥90).
-2. The average accessibility score is 88.1/100, indicating significant room for improvement.
-3. Websites have an average of 3.2 accessibility issues that need to be addressed (based on sites with available issue data).
-4. There is a 41.0-point difference between the best and worst performing domains.
-5. The most common accessibility issue is 'High Severity Issues', found on 92 sites.
-
-
-RECOMMENDATIONS:
-1. Prioritize fixing the most common accessibility issues identified in this analysis.
-2. Implement regular accessibility audits as part of the development process.
-3. Focus on meeting WCAG (Web Content Accessibility Guidelines) 2.1 AA standards.
-4. Provide accessibility training for web development and content teams.
-5. Test with real users who have disabilities to identify practical accessibility barriers.
+1. The average accessibility score is 88.1/100, with 48.9% of sites passing the accessibility standard (≥90).
+2. The most common accessibility issue is 'High Severity Issues', found on 92 sites.
+3. The second most common issue is 'ARIA attributes are not used correctly', found on 38 sites.
+4. 29 sites (31.5%) have keyboard accessibility issues.
+5. The best performing domain is www.swissinfo.ch with an accessibility score of 100.0.
+6. The worst performing domain is www.lucernehealth.com with an accessibility score of 59.0.
+7. The average Performance Score (65.9) is lower than the accessibility score.
+8. The average Best Practices Score (90.8) is higher than the accessibility score.
+9. The average SEO Score (90.1) is higher than the accessibility score.
+10. Accessibility scores range from 59.0 to 100.0 (range of 41.0 points), with a median of 89.0.
+11. 92 sites (100.0%) have high severity accessibility issues.
