@@ -194,7 +194,9 @@ def analyze_accessibility_issues(df):
                 colors=['#8B0000','#00008B'], textprops={'color': 'white'})
                 
         plt.axis('equal')
-        plt.title('Accessibility Pass/Fail Distribution')
+        plt.title('Accessibility Pass/Fail Distribution\n(≥90 score is passing)', fontsize=14)
+        plt.figtext(0.5, 0.01, 'Shows percentage of sites passing accessibility standards',
+                   ha='center', fontsize=10, fontstyle='italic')
         
         file_path = os.path.join(output_dir, "pass_fail_distribution.png")
         plt.savefig(file_path)
@@ -265,8 +267,12 @@ def create_accessibility_dashboard(df):
         pass_counts = df['AccessibilityResult'].value_counts()
         ax_pass_fail.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
                 colors=['#8B0000','#00008B'], textprops={'color': 'white'})
-        ax_pass_fail.set_title('Accessibility Pass/Fail Distribution')
+        ax_pass_fail.set_title('Accessibility Pass/Fail Distribution (≥90)')
         ax_pass_fail.axis('equal')
+        
+        # Add descriptive text
+        ax_pass_fail.text(0, -1.3, 'Proportion of sites meeting accessibility standards', 
+                        ha='center', fontsize=9, fontstyle='italic')
     
     # 3. Top Issues Bar Chart
     ax_issues = fig.add_subplot(gs[1, 0])
@@ -628,6 +634,8 @@ def analyze_severity_distribution(df):
                    textprops={'color': 'white'})
             plt.axis('equal')
             plt.title('Keyboard Focus Issues by Severity', fontsize=16)
+            plt.figtext(0.5, 0.01, 'Distribution of keyboard focus issues by severity level\nHelps prioritize remediation efforts', 
+                        ha='center', fontsize=10, fontstyle='italic')
             
             # Improve overall appearance
             plt.tight_layout()
@@ -723,7 +731,9 @@ def analyze_embedded_severity(df, column):
                     textprops={'color': 'white'})
             
             plt.axis('equal')
-            plt.title(f'Severity Distribution: {column.replace("_", " ")}')
+            plt.title(f'Severity Distribution: {column.replace("_", " ")}', fontsize=14)
+            plt.figtext(0.5, 0.01, 'Shows proportion of issues by severity level\nHelps identify critical issues requiring immediate action',
+                       ha='center', fontsize=10, fontstyle='italic')
             
             # Save visualization
             file_path = os.path.join(output_dir, "severity_distribution.png")
@@ -827,9 +837,11 @@ def analyze_accessibility_pass_rates_over_time(df):
             ax.text(i, row.Pass + (row.Fail / 2), f'{fail_pct:.1f}%',
                    ha='center', va='center', color='white', fontweight='bold')
         
-        plt.title('Pass vs. Fail by Score Category (Threshold ≥90)')
+        plt.title('Pass vs. Fail by Score Category (Threshold ≥90)', fontsize=14)
         plt.xlabel('Score Category')
         plt.ylabel('Number of Sites')
+        plt.figtext(0.5, 0.01, 'Compares passing rates across different score categories\nHighlights which aspects require most improvement',
+                   ha='center', fontsize=10, fontstyle='italic')
         plt.tight_layout()
         
         file_path = os.path.join(output_dir, "pass_fail_by_category.png")
@@ -887,84 +899,15 @@ def analyze_accessibility_issues_relationships(df):
                 annot=True, fmt='.2f', square=True, linewidths=.5, cbar_kws={"shrink": .5})
     
     plt.title('Correlations Between Accessibility Issues', fontsize=16)
+    plt.figtext(0.5, 0.01, 'Shows which accessibility issues tend to appear together\nPositive values indicate issues that commonly co-occur', 
+               ha='center', fontsize=10, fontstyle='italic')
     plt.tight_layout()
     
     file_path = os.path.join(output_dir, "issue_correlations.png")
     plt.savefig(file_path)
     print(f"Saved issue correlations to {file_path}")
     
-    # Create a co-occurrence network visualization - simplified version
-    plt.figure(figsize=(14, 10))
-    
-    # Count co-occurrences between top issues
-    top_issues = issue_matrix.sum().sort_values(ascending=False).head(5).index.tolist()
-    co_occurrence = pd.DataFrame(index=top_issues, columns=top_issues, data=0)
-    
-    for i, issue1 in enumerate(top_issues):
-        for issue2 in top_issues[i:]:  # Only upper triangle
-            if issue1 != issue2:
-                # Count sites with both issues
-                both = ((issue_matrix[issue1] == 1) & (issue_matrix[issue2] == 1)).sum()
-                co_occurrence.loc[issue1, issue2] = both
-                co_occurrence.loc[issue2, issue1] = both
-    
-    # Create a directed graph visualization
-    from matplotlib.patches import FancyArrowPatch
-    
-    # Define node positions in a circle
-    import math
-    n_nodes = len(top_issues)
-    radius = 0.8
-    node_positions = {}
-    node_colors = {}
-    
-    for i, issue in enumerate(top_issues):
-        angle = 2 * math.pi * i / n_nodes
-        x = radius * math.cos(angle)
-        y = radius * math.sin(angle)
-        node_positions[issue] = (x, y)
-        node_colors[issue] = red_blue_palette[i % len(red_blue_palette)]
-    
-    # Plot nodes
-    fig, ax = plt.subplots(figsize=(14, 12))
-    ax.set_xlim(-1.2, 1.2)
-    ax.set_ylim(-1.2, 1.2)
-    
-    # Add edges (connections)
-    max_co = co_occurrence.max().max()
-    min_width = 1
-    max_width = 8
-    
-    for issue1 in top_issues:
-        for issue2 in top_issues:
-            if issue1 != issue2:
-                co_value = co_occurrence.loc[issue1, issue2]
-                if co_value > 0:
-                    # Scale line width by co-occurrence value
-                    width = min_width + ((co_value / max_co) * (max_width - min_width))
-                    ax.add_patch(FancyArrowPatch(
-                        node_positions[issue1], node_positions[issue2],
-                        arrowstyle='-', mutation_scale=20, 
-                        linewidth=width, alpha=0.7, color='#808080'))
-    
-    # Plot nodes over edges
-    for issue in top_issues:
-        x, y = node_positions[issue]
-        # Plot node
-        count = issue_matrix[issue].sum()
-        size = 1000 * (count / issue_matrix.shape[0])  # Size based on prevalence
-        ax.scatter(x, y, s=size, color=node_colors[issue], alpha=0.8, edgecolor='white', linewidth=2)
-        
-        # Add labels with count
-        ax.text(x, y, f"{issue}\n({count})", ha='center', va='center', 
-                fontsize=10, fontweight='bold', color='white')
-    
-    ax.set_title('Co-occurrence of Top 5 Accessibility Issues', fontsize=16)
-    ax.axis('off')
-    
-    file_path = os.path.join(output_dir, "issue_co_occurrence.png")
-    plt.savefig(file_path)
-    print(f"Saved issue co-occurrence visualization to {file_path}")
+    # Removing co-occurrence network visualization as requested
     
     return issue_corr
 
