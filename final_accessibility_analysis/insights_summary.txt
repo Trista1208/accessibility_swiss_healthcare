@@ -1,40 +1,55 @@
-# SWISS HEALTHCARE WEBSITE ACCESSIBILITY INSIGHTS
+# Healthcare Website Accessibility Analysis Summary
 
-## OVERVIEW
+## Overview
+- **Websites Analyzed:** 92
+- **Unique Domains:** 89
+- **Average Accessibility Score:** 88.1/100
+- **Pass Rate (≥90):** 48.9%
+- **Average number of accessibility issues:** 3.2 per site
 
-This document presents an analysis of web accessibility for Swiss healthcare websites based on Google Lighthouse audits. The analysis included 92 websites.
+## Key Findings
 
-## KEY ACCESSIBILITY FINDINGS
+### Common Accessibility Issues
+- **High Severity Issues:** Found on 92 sites (100.0%)
+- **ARIA attributes are not used correctly:** Found on 38 sites (41.3%)
+- **Form elements do not have associated labels:** Found on 31 sites (33.7%)
+- **Image elements do not have [alt] attributes:** Found on 30 sites (32.6%)
+- **Accessibility Keyboard Focus Interactive controls are not keyboard focusable:** Found on 29 sites (31.5%)
 
-1. **Accessibility Compliance**: Only 48.9% of healthcare websites pass accessibility standards (score ≥90/100).
+### Keyboard Focus Accessibility
+- 29 sites (31.5%) have keyboard accessibility issues
 
-2. **Average Performance**:
-   - Average accessibility score: 88.1/100
-   - Average number of accessibility issues: 3.2 per site (for sites with available issue data)
+### Domain Performance
+#### Top Performers
+- **www.crr-suva.ch:** 100.0/100
+- **ch.linkedin.com:** 100.0/100
+- **www.adecco.com:** 100.0/100
 
-3. **Top Accessibility Issues**:
-   - High Severity Issues (92 sites)
-   - ARIA attributes are not used correctly (38 sites)
-   - Form elements do not have associated labels (31 sites)
-   - Keyboard Focus Interactive controls are not keyboard focusable (29 sites)
+#### Needs Improvement
+- **www.lucernehealth.com:** 59.0/100
+- **boris.unibe.ch:** 65.0/100
+- **www.chuv.ch:** 70.0/100
 
-4. **Keyboard Accessibility**:
-   - Only 31.5% of sites were tested for keyboard focus accessibility
+## Recommendations
 
-## RECOMMENDATIONS
+### High Priority
+1. **Fix keyboard accessibility issues** - Ensure all interactive elements are keyboard accessible
+2. **Address high severity issues** - Focus on high impact issues that affect many users
+3. **Ensure proper image alt text** - All images should have appropriate alternative text
 
-1. **Critical Improvements**:
-   - Fix common accessibility issues identified in this analysis
-   - Implement efficient keyboard navigation
-   - Ensure proper image descriptions and ARIA attributes
+### Medium Priority
+1. **Improve ARIA attributes** - Ensure ARIA attributes are used correctly
+2. **Fix form labeling** - All form elements should have proper labels
+3. **Address color contrast issues** - Ensure text has sufficient contrast with background colors
 
-2. **Accessibility Standards**:
-   - Adopt and adhere to WCAG 2.1 AA standards
-   - Implement accessibility testing in the development lifecycle
-   - Test with assistive technologies
+### Low Priority
+1. **Improve document structure** - Use proper heading hierarchy
+2. **Add landmark regions** - Improve navigation with proper landmarks
+3. **Review link text** - Ensure all links have descriptive text
 
-## CONCLUSION
-
-The accessibility of Swiss healthcare websites requires significant improvement. With less than half meeting basic accessibility standards, there is a clear need for healthcare providers to address these issues.
-
-Report Date: {timestamp}
+## Next Steps
+1. Share these findings with development teams
+2. Prioritize fixes based on severity and impact
+3. Implement an accessibility testing process
+4. Create a timeline for addressing critical issues
+5. Perform follow-up testing after remediation
