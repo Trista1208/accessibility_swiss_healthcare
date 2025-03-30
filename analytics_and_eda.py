@@ -21,7 +21,7 @@ sns.set_palette(red_blue_palette)
 output_dir = "final_accessibility_analysis"
 os.makedirs(output_dir, exist_ok=True)
 
-def load_data(file_path='lighthouse_scores_optimized.xlsx'):
+def load_data(file_path='lighthouse_accessibility_data.xlsx'):
     """Load and prepare the data for analysis"""
     print(f"Loading data from {file_path}...")
     df = pd.read_excel(file_path)
@@ -30,7 +30,7 @@ def load_data(file_path='lighthouse_scores_optimized.xlsx'):
     # Display basic information
     print("\nData Overview:")
     print(f"- Score columns: {[col for col in df.columns if '_Score' in col]}")
-    print(f"- Issue columns: {len([col for col in df.columns if 'A11y_Issue' in col])} columns")
+    print(f"- Issue columns: {len([col for col in df.columns if 'A11y_Issue' in col or 'not_have' in col or 'lack' in col])} columns")
     
     # Check for missing values
     missing = df.isnull().sum()
@@ -116,20 +116,17 @@ def analyze_accessibility_issues(df):
     """Analyze accessibility issues to identify patterns and common problems"""
     print("\n===== ACCESSIBILITY ISSUES ANALYSIS =====")
     
-    # Find issue columns
+    # Find issue columns - now the column structure has changed
     a11y_cols = []
     
     for col in df.columns:
+        # Check for extracted issue columns from the new structure
         if (col.startswith('A11y_Issue_') or 
-            col.startswith('Accessibility_Issue_') or 
-            'Interactive' in col):
+            'not_have' in col or 
+            'lacks' in col or 
+            'not_specified' in col or
+            'Interactive_controls' in col):
             a11y_cols.append(col)
-    
-    # If no standard issue columns, check for accessibility details columns
-    if not a11y_cols:
-        for col in df.columns:
-            if 'details' in col.lower() and 'accessibility' in col.lower():
-                a11y_cols.append(col)
     
     if not a11y_cols:
         print("No accessibility issue columns found in the dataset.")
@@ -151,7 +148,8 @@ def analyze_accessibility_issues(df):
         count = df[col].notna().sum()
         if count > 0:
             # Clean up column name for display
-            display_name = col.replace('A11y_Issue_', '').replace('Accessibility_', '').replace('_', ' ')
+            display_name = col.replace('A11y_Issue_', '')
+            display_name = display_name.replace('_', ' ')
             issue_counts[display_name] = count
     
     # Sort issues by frequency
@@ -198,130 +196,84 @@ def analyze_accessibility_issues(df):
         
         plt.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
                 colors=['#8B0000','#00008B'])
-        plt.title("Accessibility Pass/Fail Distribution")
+                
         plt.axis('equal')
+        plt.title('Accessibility Pass/Fail Distribution')
         
         file_path = os.path.join(output_dir, "pass_fail_distribution.png")
         plt.savefig(file_path)
         print(f"Saved pass/fail distribution to {file_path}")
     
+    # Return the dictionary rather than the sorted list for compatibility with existing functions
     return issue_counts
 
 def analyze_keyboard_focus_accessibility(df):
-    """Analyze keyboard focus accessibility issues specifically"""
+    """Analyze keyboard focus accessibility issues"""
     print("\n===== KEYBOARD FOCUS ACCESSIBILITY ANALYSIS =====")
     
-    # Find keyboard and focus related columns
-    keyboard_focus_cols = [col for col in df.columns if 'keyboard' in str(col).lower() or 'focus' in str(col).lower()]
+    # Find keyboard focus columns - updated for the new structure
+    keyboard_cols = [col for col in df.columns if 'keyboard' in col.lower() or 'focus' in col.lower()]
     
-    if not keyboard_focus_cols:
-        print("No keyboard focus related columns found in the dataset.")
+    if not keyboard_cols:
+        print("No keyboard focus accessibility columns found in the dataset.")
         return None
     
-    print(f"\nFound {len(keyboard_focus_cols)} keyboard/focus related columns:")
-    for idx, col in enumerate(keyboard_focus_cols):
-        print(f"{idx+1}. {col}")
+    print(f"Found {len(keyboard_cols)} keyboard focus accessibility columns.")
     
-    # Preprocess values in these columns
-    df_focus = df.copy()
-    for col in keyboard_focus_cols:
-        # Convert NaN to 'Not Tested'
-        df_focus[col] = df_focus[col].fillna('Not Tested')
-        
-        # Convert 0.0 and 1.0 to 'Fail' and 'Pass'
-        df_focus[col] = df_focus[col].apply(
-            lambda x: 'Fail' if x == 0.0 else ('Pass' if x == 1.0 else x)
-        )
+    # Count sites with keyboard focus issues
+    keyboard_focus_issues = df[keyboard_cols[0]].notna().sum() if keyboard_cols else 0
+    total_tested = df.shape[0]
     
-    # Count sites with keyboard focus data
-    has_keyboard_data = df_focus[keyboard_focus_cols].apply(
-        lambda x: x != 'Not Tested').any(axis=1)
-    sites_with_data = has_keyboard_data.sum()
-    percent_with_data = sites_with_data / len(df) * 100
+    print(f"\nKeyboard Focus Accessibility:")
+    print(f"- Sites tested for keyboard focus: {keyboard_focus_issues} ({keyboard_focus_issues/total_tested*100:.1f}%)")
+    print(f"- Sites with potential keyboard focus issues: {keyboard_focus_issues}")
     
-    print(f"\nSites with keyboard focus accessibility data: {sites_with_data} out of {len(df)} ({percent_with_data:.1f}%)")
+    # Extract severity information from keyboard columns if available
+    severity_data = None
+    for col in keyboard_cols:
+        if 'Interactive_controls' in col and df[col].notna().sum() > 0:
+            severity_data = analyze_embedded_severity(df, col)
+            break
     
-    if sites_with_data == 0:
-        print("No keyboard focus accessibility data available for analysis.")
-        return None
+    if severity_data:
+        print("\nKeyboard Focus Severity Distribution:")
+        for severity, count in severity_data.items():
+            print(f"- {severity}: {count} sites")
     
-    # Analyze each keyboard focus column
-    pass_rates = {}
-    for col in keyboard_focus_cols:
-        # Count values excluding 'Not Tested'
-        value_counts = df_focus[df_focus[col] != 'Not Tested'][col].value_counts()
-        
-        # Calculate statistics for sites that were tested
-        tested_count = len(df_focus[df_focus[col] != 'Not Tested'])
-        
-        if tested_count > 0:
-            print(f"\nAnalysis for {col}:")
-            print(f"- Tested sites: {tested_count} ({tested_count/len(df)*100:.1f}%)")
-            print("- Value counts:")
-            for val, count in value_counts.items():
-                print(f"  * {val}: {count} ({count/tested_count*100:.1f}% of tested sites)")
-            
-            # Calculate pass rate (looking for 'Pass' values)
-            pass_count = value_counts.get('Pass', 0)
-            pass_rate = pass_count / tested_count * 100 if tested_count > 0 else 0
-            pass_rates[col] = pass_rate
-            print(f"- Pass rate: {pass_rate:.1f}%")
-    
-    # Create visualization for keyboard focus accessibility
+    # Create visualization of keyboard focus accessibility
     plt.figure(figsize=(12, 8))
     
-    # Plot 1: Pass rates for each test
-    cols_to_plot = [col for col in keyboard_focus_cols if pass_rates.get(col, -1) >= 0]
-    
-    if cols_to_plot:
-        # Create readable names for the plot
-        col_names = [col.replace('Accessibility_Keyboard_Focus_', '').replace('_', ' ') for col in cols_to_plot]
-        pass_rate_values = [pass_rates[col] for col in cols_to_plot]
+    # Plot keyboard focus issues
+    if keyboard_cols:
+        # Count values for each keyboard column
+        keyboard_data = {}
+        for col in keyboard_cols:
+            display_name = col.replace('Accessibility_Keyboard_Focus_', '')
+            display_name = display_name.replace('_', ' ')
+            if len(display_name) > 30:
+                display_name = display_name[:27] + '...'
+                
+            # Count non-NaN values
+            count = df[col].notna().sum()
+            if count > 0:
+                keyboard_data[display_name] = count
         
-        # Create horizontal bar chart
-        bars = plt.barh(col_names, pass_rate_values, color='#00008B')
+        # Create bar chart of keyboard focus issues
+        plt.figure(figsize=(14, 8))
+        keys = list(keyboard_data.keys())
+        values = [keyboard_data[k] for k in keys]
         
-        for bar in bars:
-            width = bar.get_width()
-            plt.text(width + 1, bar.get_y() + bar.get_height()/2, f"{width:.1f}%", va='center', color='#8B0000')
+        plt.bar(keys, values, color='#8B0000')
+        plt.xticks(rotation=45, ha='right')
+        plt.title('Keyboard Focus Accessibility Issues')
+        plt.ylabel('Number of Sites')
+        plt.tight_layout()
         
-        plt.xlabel('Pass Rate (%)')
-        plt.title('Keyboard Focus Accessibility Pass Rates')
-        plt.xlim(0, 105)  # Allow space for labels
-    else:
-        plt.text(0.5, 0.5, 'No pass rate data available', 
-                horizontalalignment='center', verticalalignment='center',
-                transform=plt.gca().transAxes)
+        file_path = os.path.join(output_dir, "keyboard_focus_accessibility.png")
+        plt.savefig(file_path)
+        print(f"Saved keyboard focus accessibility analysis to {file_path}")
     
-    # Save visualization
-    file_path = os.path.join(output_dir, "keyboard_focus_accessibility.png")
-    plt.savefig(file_path)
-    print(f"Saved keyboard focus accessibility analysis to {file_path}")
-    
-    # Overall statistics
-    total_tests = sum(len(df_focus[df_focus[col] != 'Not Tested']) for col in keyboard_focus_cols)
-    total_passes = sum(value_counts.get('Pass', 0) for col in keyboard_focus_cols for value_counts in [df_focus[df_focus[col] != 'Not Tested'][col].value_counts()])
-    
-    overall_pass_rate = total_passes / total_tests * 100 if total_tests > 0 else 0
-    
-    print(f"\nOverall Keyboard Focus Accessibility:")
-    print(f"- Total tests performed: {total_tests}")
-    print(f"- Total passes: {total_passes}")
-    print(f"- Overall pass rate: {overall_pass_rate:.1f}%")
-    
-    # Sites with at least one keyboard focus issue
-    sites_with_issues = df_focus[has_keyboard_data & df_focus[keyboard_focus_cols].apply(
-        lambda x: (x == 'Fail').any(), axis=1)].shape[0]
-    percent_with_issues = sites_with_issues / sites_with_data * 100 if sites_with_data > 0 else 0
-    
-    print(f"- Sites with at least one keyboard focus issue: {sites_with_issues} ({percent_with_issues:.1f}% of tested sites)")
-    
-    return {
-        'tested_sites': sites_with_data,
-        'percent_tested': percent_with_data,
-        'has_keyboard_issues': sites_with_issues,
-        'overall_pass_rate': overall_pass_rate
-    }
+    return {'tested': total_tested, 'issues': keyboard_focus_issues, 'severity': severity_data}
 
 def create_accessibility_dashboard(df):
     """Create a simplified dashboard with key accessibility insights"""
@@ -465,168 +417,203 @@ def create_accessibility_dashboard(df):
     print(f"Saved accessibility dashboard to {file_path}")
 
 def generate_insights(df, score_stats, domain_scores, issue_counts=None):
-    """Generate meaningful insights based on the analysis"""
+    """Generate key insights from the analysis"""
     print("\n===== KEY INSIGHTS =====")
     
-    # Calculate key metrics
-    pass_rate = (df['Accessibility_Score'] >= 90).mean() * 100
+    insights = []
+    
+    # 1. Overall Accessibility Score and Pass Rate
     avg_score = score_stats.loc['mean', 'Accessibility_Score']
+    pass_rate = (df['Accessibility_Score'] >= 90).mean() * 100
     
-    # Calculate average issues properly by excluding sites without issues data
-    avg_issues = None
-    if 'Accessibility_Issues_Count' in df.columns:
-        # Only consider sites that have issue count data (not NaN)
-        sites_with_issue_data = df['Accessibility_Issues_Count'].notna()
-        if sites_with_issue_data.any():
-            avg_issues = df.loc[sites_with_issue_data, 'Accessibility_Issues_Count'].mean()
-            # Also calculate what percentage of sites have issue data
-            percent_with_data = sites_with_issue_data.mean() * 100
+    insights.append(f"The average accessibility score is {avg_score:.1f}/100, with {pass_rate:.1f}% of sites passing the accessibility standard (≥90).")
     
-    insights = [
-        f"1. Only {pass_rate:.1f}% of analyzed healthcare websites pass accessibility standards (score ≥90).",
-        f"2. The average accessibility score is {avg_score:.1f}/100, indicating significant room for improvement."
-    ]
-    
-    if avg_issues is not None:
-        insights.append(f"3. Websites have an average of {avg_issues:.1f} accessibility issues that need to be addressed (based on sites with available issue data).")
-    
-    # Domain insights
-    if domain_scores is not None and len(domain_scores) > 1:
-        score_range = domain_scores.max() - domain_scores.min()
-        insights.append(f"4. There is a {score_range:.1f}-point difference between the best and worst performing domains.")
-    
-    # Insight about most common issue
+    # 2. Most common accessibility issues
     if issue_counts and len(issue_counts) > 0:
-        # Convert to DataFrame for consistent handling
         issue_df = pd.DataFrame({'Issue': list(issue_counts.keys()), 'Count': list(issue_counts.values())})
         issue_df = issue_df.sort_values('Count', ascending=False)
         
-        if not issue_df.empty:
-            top_issue = issue_df.iloc[0]['Issue']
-            top_issue_count = issue_df.iloc[0]['Count']
-            insights.append(f"5. The most common accessibility issue is '{top_issue}', found on {top_issue_count} sites.")
+        top_issue = issue_df.iloc[0]['Issue']
+        top_count = issue_df.iloc[0]['Count']
+        
+        insights.append(f"The most common accessibility issue is '{top_issue}', found on {top_count} sites.")
+        
+        if len(issue_df) > 1:
+            second_issue = issue_df.iloc[1]['Issue']
+            second_count = issue_df.iloc[1]['Count']
+            insights.append(f"The second most common issue is '{second_issue}', found on {second_count} sites.")
+    
+    # 3. Keyboard accessibility insights
+    keyboard_cols = [col for col in df.columns if 'keyboard' in col.lower() or 'focus' in col.lower()]
+    keyboard_issue_count = df[keyboard_cols[0]].notna().sum() if keyboard_cols and len(keyboard_cols) > 0 else 0
+    
+    if keyboard_issue_count > 0:
+        keyboard_percent = keyboard_issue_count / len(df) * 100
+        insights.append(f"{keyboard_issue_count} sites ({keyboard_percent:.1f}%) have keyboard accessibility issues.")
+    
+    # 4. Best and worst performers
+    if len(domain_scores) > 0:
+        best_domain = domain_scores.idxmax()
+        best_score = domain_scores.max()
+        worst_domain = domain_scores.idxmin()
+        worst_score = domain_scores.min()
+        
+        insights.append(f"The best performing domain is {best_domain} with an accessibility score of {best_score:.1f}.")
+        insights.append(f"The worst performing domain is {worst_domain} with an accessibility score of {worst_score:.1f}.")
+    
+    # 5. Score comparisons
+    for score_type in ['Performance_Score', 'Best_Practices_Score', 'SEO_Score']:
+        if score_type in score_stats.columns:
+            score_avg = score_stats.loc['mean', score_type]
+            comparison = "higher than" if score_avg > avg_score else "lower than"
+            insights.append(f"The average {score_type.replace('_', ' ')} ({score_avg:.1f}) is {comparison} the accessibility score.")
+    
+    # 6. Score distribution insights
+    min_score = score_stats.loc['min', 'Accessibility_Score']
+    max_score = score_stats.loc['max', 'Accessibility_Score']
+    median_score = score_stats.loc['50%', 'Accessibility_Score']
+    
+    score_range = max_score - min_score
+    insights.append(f"Accessibility scores range from {min_score:.1f} to {max_score:.1f} (range of {score_range:.1f} points), with a median of {median_score:.1f}.")
+    
+    # 7. Potential severity insights
+    high_severity_col = [col for col in df.columns if 'high' in col.lower() and 'severity' in col.lower()]
+    if high_severity_col and len(high_severity_col) > 0:
+        high_severity_count = df[high_severity_col[0]].notna().sum()
+        high_severity_percent = high_severity_count / len(df) * 100
+        insights.append(f"{high_severity_count} sites ({high_severity_percent:.1f}%) have high severity accessibility issues.")
     
     # Print insights
-    print("\nKey Insights:")
-    for insight in insights:
-        print(insight)
+    for i, insight in enumerate(insights):
+        print(f"{i+1}. {insight}")
     
-    # Save insights to text file
-    insights_text = "HEALTHCARE WEBSITE ACCESSIBILITY ANALYSIS\n"
-    insights_text += "=" * 50 + "\n\n"
-    insights_text += "KEY INSIGHTS:\n"
-    for insight in insights:
-        insights_text += insight + "\n"
+    # Create insights text
+    insights_text = "# Key Accessibility Insights\n\n"
+    for i, insight in enumerate(insights):
+        insights_text += f"{i+1}. {insight}\n"
     
-    # Add recommendations
-    insights_text += "\n\nRECOMMENDATIONS:\n"
-    recommendations = [
-        "1. Prioritize fixing the most common accessibility issues identified in this analysis.",
-        "2. Implement regular accessibility audits as part of the development process.",
-        "3. Focus on meeting WCAG (Web Content Accessibility Guidelines) 2.1 AA standards.",
-        "4. Provide accessibility training for web development and content teams.",
-        "5. Test with real users who have disabilities to identify practical accessibility barriers."
-    ]
-    
-    for rec in recommendations:
-        insights_text += rec + "\n"
-    
-    # Write to file
-    insights_file = os.path.join(output_dir, "accessibility_insights_summary.txt")
-    with open(insights_file, "w") as f:
+    # Save to file
+    file_path = os.path.join(output_dir, "accessibility_insights_summary.txt")
+    with open(file_path, 'w') as f:
         f.write(insights_text)
     
-    print(f"\nSaved insights and recommendations to {insights_file}")
+    print(f"\nSaved accessibility insights to {file_path}")
     
     return insights, insights_text
 
 def create_insights_summary(df, score_stats, domain_scores, issue_counts):
-    """Create a summary of insights and recommendations"""
-    timestamp = datetime.now().strftime("%B %d, %Y")
+    """Create a comprehensive summary of accessibility insights and recommendations"""
+    print("\n===== CREATING INSIGHTS SUMMARY =====")
     
-    # Calculate average issues properly by excluding sites without issues data
-    avg_issues = None
+    # Calculate key metrics
+    sites_count = len(df)
+    domains_count = len(domain_scores)
+    avg_accessibility = score_stats.loc['mean', 'Accessibility_Score']
+    pass_rate = (df['Accessibility_Score'] >= 90).mean() * 100
+    
+    # Calculate average issues per site
     if 'Accessibility_Issues_Count' in df.columns:
-        # Only consider sites that have issue count data (not NaN)
-        sites_with_issue_data = df['Accessibility_Issues_Count'].notna()
-        if sites_with_issue_data.any():
-            avg_issues = df.loc[sites_with_issue_data, 'Accessibility_Issues_Count'].mean()
-    
-    # Create the content
-    summary = f"""# SWISS HEALTHCARE WEBSITE ACCESSIBILITY INSIGHTS
-
-## OVERVIEW
-
-This document presents an analysis of web accessibility for Swiss healthcare websites based on Google Lighthouse audits. The analysis included {len(df)} websites.
-
-## KEY ACCESSIBILITY FINDINGS
-
-1. **Accessibility Compliance**: Only {(df['Accessibility_Score'] >= 90).mean() * 100:.1f}% of healthcare websites pass accessibility standards (score ≥90/100).
-
-2. **Average Performance**:
-   - Average accessibility score: {score_stats.loc['mean', 'Accessibility_Score']:.1f}/100"""
-
-    if avg_issues is not None:
-        summary += f"\n   - Average number of accessibility issues: {avg_issues:.1f} per site (for sites with available issue data)"
+        # Use the pre-calculated count if available
+        avg_issues = df['Accessibility_Issues_Count'].mean() if df['Accessibility_Issues_Count'].notna().any() else 'N/A'
     else:
-        summary += "\n   - Average number of accessibility issues: No data available"
-
-    summary += "\n\n3. **Top Accessibility Issues**:"
-
-    # Add top issues if available
-    if issue_counts and len(issue_counts) > 0:
-        issue_df = pd.DataFrame({'Issue': list(issue_counts.keys()), 'Count': list(issue_counts.values())})
-        issue_df = issue_df.sort_values('Count', ascending=False)
-        top_issues = min(5, len(issue_df))
-        for i in range(top_issues):
-            issue = issue_df.iloc[i]['Issue']
-            count = issue_df.iloc[i]['Count']
-            summary += f"\n   - {issue} ({count} sites)"
+        # Otherwise calculate from issue columns
+        issue_cols = [col for col in df.columns if ('A11y_Issue' in col) or ('not_have' in col) or ('lacks' in col)]
+        if issue_cols:
+            # Count non-null values in any issue column
+            has_issues = df[issue_cols].notna().any(axis=1)
+            
+            if has_issues.sum() > 0:
+                # Count total issues and calculate average
+                total_issues = df[issue_cols].notna().sum().sum()
+                sites_with_issues = has_issues.sum()
+                avg_issues = total_issues / sites_with_issues
+            else:
+                avg_issues = 'N/A'
+        else:
+            avg_issues = 'N/A'
     
-    # Add keyboard focus section
-    keyboard_cols = [col for col in df.columns if 'keyboard' in str(col).lower() or 'focus' in str(col).lower()]
-    if keyboard_cols:
-        has_keyboard_data = df[keyboard_cols].notna().any(axis=1)
-        sites_with_data = has_keyboard_data.sum()
-        testing_rate = sites_with_data / len(df) * 100
+    # Generate summary text
+    summary = f"""# Healthcare Website Accessibility Analysis Summary
+
+## Overview
+- **Websites Analyzed:** {sites_count}
+- **Unique Domains:** {domains_count}
+- **Average Accessibility Score:** {avg_accessibility:.1f}/100
+- **Pass Rate (≥90):** {pass_rate:.1f}%
+- **Average number of accessibility issues:** {avg_issues if isinstance(avg_issues, str) else f"{avg_issues:.1f}"} per site
+
+## Key Findings
+
+"""
+    
+    # Add findings about common issues
+    if issue_counts and len(issue_counts) > 0:
+        sorted_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)
+        top_5_issues = sorted_issues[:5]
         
-        summary += f"""
-
-4. **Keyboard Accessibility**:
-   - Only {testing_rate:.1f}% of sites were tested for keyboard focus accessibility"""
-
+        summary += "### Common Accessibility Issues\n"
+        for issue, count in top_5_issues:
+            percentage = (count / sites_count) * 100
+            summary += f"- **{issue}:** Found on {count} sites ({percentage:.1f}%)\n"
+    
+    # Add findings about keyboard accessibility
+    keyboard_cols = [col for col in df.columns if 'keyboard' in col.lower() or 'focus' in col.lower()]
+    if keyboard_cols and len(keyboard_cols) > 0:
+        keyboard_focus_issues = df[keyboard_cols[0]].notna().sum()
+        if keyboard_focus_issues > 0:
+            kb_percentage = (keyboard_focus_issues / sites_count) * 100
+            summary += f"\n### Keyboard Focus Accessibility\n"
+            summary += f"- {keyboard_focus_issues} sites ({kb_percentage:.1f}%) have keyboard accessibility issues\n"
+    
+    # Add domain highlights
+    if len(domain_scores) > 0:
+        summary += "\n### Domain Performance\n"
+        
+        # Top domains
+        top_domains = domain_scores.sort_values(ascending=False).head(3)
+        summary += "#### Top Performers\n"
+        for domain, score in top_domains.items():
+            summary += f"- **{domain}:** {score:.1f}/100\n"
+        
+        # Bottom domains
+        bottom_domains = domain_scores.sort_values().head(3)
+        summary += "\n#### Needs Improvement\n"
+        for domain, score in bottom_domains.items():
+            summary += f"- **{domain}:** {score:.1f}/100\n"
+    
     # Add recommendations
     summary += """
+## Recommendations
 
-## RECOMMENDATIONS
+### High Priority
+1. **Fix keyboard accessibility issues** - Ensure all interactive elements are keyboard accessible
+2. **Address high severity issues** - Focus on high impact issues that affect many users
+3. **Ensure proper image alt text** - All images should have appropriate alternative text
 
-1. **Critical Improvements**:
-   - Fix common accessibility issues identified in this analysis
-   - Implement efficient keyboard navigation
-   - Ensure proper image descriptions and ARIA attributes
+### Medium Priority
+1. **Improve ARIA attributes** - Ensure ARIA attributes are used correctly
+2. **Fix form labeling** - All form elements should have proper labels
+3. **Address color contrast issues** - Ensure text has sufficient contrast with background colors
 
-2. **Accessibility Standards**:
-   - Adopt and adhere to WCAG 2.1 AA standards
-   - Implement accessibility testing in the development lifecycle
-   - Test with assistive technologies
+### Low Priority
+1. **Improve document structure** - Use proper heading hierarchy
+2. **Add landmark regions** - Improve navigation with proper landmarks
+3. **Review link text** - Ensure all links have descriptive text
 
-## CONCLUSION
-
-The accessibility of Swiss healthcare websites requires significant improvement. With less than half meeting basic accessibility standards, there is a clear need for healthcare providers to address these issues.
-
-Report Date: {timestamp}"""
-
-    # Save to file
-    summary_file = "insights_summary.txt"
-    with open(summary_file, 'w') as f:
+## Next Steps
+1. Share these findings with development teams
+2. Prioritize fixes based on severity and impact
+3. Implement an accessibility testing process
+4. Create a timeline for addressing critical issues
+5. Perform follow-up testing after remediation
+"""
+    
+    # Save the summary
+    file_path = os.path.join(output_dir, "insights_summary.txt")
+    with open(file_path, 'w') as f:
         f.write(summary)
     
-    # Also save a copy to the output directory
-    output_file = os.path.join(output_dir, "insights_summary.txt")
-    with open(output_file, 'w') as f:
-        f.write(summary)
-    
-    print(f"Saved insights summary to {summary_file} and {output_file}")
+    print(f"Saved insights summary to {file_path}")
     
     return summary
 
@@ -812,7 +799,7 @@ def analyze_embedded_severity(df, column):
 
 def main():
     """Main function to execute accessibility analysis"""
-    # Load data
+    # Load data - updated to use the new file
     df = load_data()
     
     # Filter out records with missing scores
