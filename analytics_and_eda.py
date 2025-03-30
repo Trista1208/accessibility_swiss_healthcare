@@ -190,8 +190,29 @@ def analyze_accessibility_issues(df):
         plt.figure(figsize=(8, 8))
         pass_counts = df['AccessibilityResult'].value_counts()
         
-        plt.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
-                colors=['#8B0000','#00008B'], textprops={'color': 'white'})
+        # Get actual counts for annotations
+        pass_count = pass_counts.get('Pass', 0)
+        fail_count = pass_counts.get('Fail', 0)
+        total_count = pass_count + fail_count
+        
+        # Create pie chart with detailed labels
+        wedges, texts, autotexts = plt.pie(pass_counts, labels=pass_counts.index, 
+                autopct='%1.1f%%', startangle=90,
+                colors=['#8B0000','#00008B'], textprops={'color': 'white', 'fontweight': 'bold'})
+        
+        # Add count information inside the wedges
+        for i, wedge in enumerate(wedges):
+            count = pass_count if i == 1 else fail_count  # Adjust based on your data order
+            ang = (wedge.theta2 - wedge.theta1) / 2. + wedge.theta1
+            y = np.sin(np.deg2rad(ang))
+            x = np.cos(np.deg2rad(ang))
+            
+            # Determine text color based on background
+            plt.annotate(f'{count} sites', 
+                     xy=(x * 0.5, y * 0.5),  # Use radius of 0.5 to place inside
+                     ha='center', va='center',
+                     fontsize=10, fontweight='bold',
+                     color='white')
                 
         plt.axis('equal')
         plt.title('Accessibility Pass/Fail Distribution\n(≥90 score is passing)', fontsize=14)
@@ -265,8 +286,34 @@ def create_accessibility_dashboard(df):
     
     if 'AccessibilityResult' in df.columns:
         pass_counts = df['AccessibilityResult'].value_counts()
-        ax_pass_fail.pie(pass_counts, labels=pass_counts.index, autopct='%1.1f%%', startangle=90,
-                colors=['#8B0000','#00008B'], textprops={'color': 'white'})
+        
+        # Get actual counts for annotations
+        pass_count = pass_counts.get('Pass', 0)
+        fail_count = pass_counts.get('Fail', 0)
+        
+        # Create pie chart
+        wedges, texts, autotexts = ax_pass_fail.pie(
+            pass_counts, 
+            labels=pass_counts.index, 
+            autopct='%1.1f%%', 
+            startangle=90,
+            colors=['#8B0000','#00008B'], 
+            textprops={'color': 'white', 'fontweight': 'bold'}
+        )
+        
+        # Add count information inside the wedges
+        for i, wedge in enumerate(wedges):
+            count = pass_count if i == 1 else fail_count  # Adjust based on your data order
+            ang = (wedge.theta2 - wedge.theta1) / 2. + wedge.theta1
+            y = np.sin(np.deg2rad(ang))
+            x = np.cos(np.deg2rad(ang))
+            
+            ax_pass_fail.annotate(f'{count} sites', 
+                              xy=(x * 0.5, y * 0.5),  # Use radius of 0.5 to place inside
+                              ha='center', va='center',
+                              fontsize=9, fontweight='bold',
+                              color='white')
+                
         ax_pass_fail.set_title('Accessibility Pass/Fail Distribution (≥90)')
         ax_pass_fail.axis('equal')
         
@@ -623,15 +670,42 @@ def analyze_severity_distribution(df):
             colors = {'High': '#8B0000', 'Medium': '#D21F3C', 'Low': '#00008B', 'Unknown': '#808080'}
             sorted_data = sorted(severity_data.items(), 
                                key=lambda x: {'High': 0, 'Medium': 1, 'Low': 2, 'Unknown': 3}.get(x[0], 4))
-            labels = [f"{k} ({v})" for k, v in sorted_data]
+            labels = [f"{k}" for k, _ in sorted_data]  # Simplify main labels
             sizes = [v for _, v in sorted_data]
             
             # Explode the high severity slice
-            explode = [0.1 if k == 'High' else 0.05 if k == 'Medium' else 0 for k, _ in sorted_data]
+            explode = [0.1 if k[0] == 'High' else 0.05 if k[0] == 'Medium' else 0 for k in sorted_data]
             
-            plt.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%', startangle=90,
-                   colors=[colors.get(k, '#BDBDBD') for k, _ in sorted_data], shadow=True, 
-                   textprops={'color': 'white'})
+            # Create pie chart
+            wedges, texts, autotexts = plt.pie(
+                sizes, 
+                explode=explode, 
+                labels=labels, 
+                autopct='%1.1f%%', 
+                startangle=90,
+                colors=[colors.get(k, '#BDBDBD') for k, _ in sorted_data], 
+                shadow=True, 
+                textprops={'color': 'white', 'fontweight': 'bold'}
+            )
+            
+            # Add count inside each wedge
+            for i, (k, v) in enumerate(sorted_data):
+                ang = (wedges[i].theta2 - wedges[i].theta1) / 2. + wedges[i].theta1
+                y = np.sin(np.deg2rad(ang))
+                x = np.cos(np.deg2rad(ang))
+                
+                # Adjust radius based on the wedge size
+                radius = 0.5
+                if v / sum(sizes) < 0.1:  # For very small wedges
+                    radius = 0.7
+                
+                # Add count inside
+                plt.annotate(f'{v} sites', 
+                         xy=(x * radius, y * radius),
+                         ha='center', va='center',
+                         fontsize=9, fontweight='bold',
+                         color='white')
+            
             plt.axis('equal')
             plt.title('Keyboard Focus Issues by Severity', fontsize=16)
             plt.figtext(0.5, 0.01, 'Distribution of keyboard focus issues by severity level\nHelps prioritize remediation efforts', 
