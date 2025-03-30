@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import re
 from datetime import datetime
 
 def clean_lighthouse_data(input_file='lighthouse_results_detailed_20250321_135559.xlsx', threshold_empty=0.8):
@@ -351,6 +352,84 @@ def clean_lighthouse_data(input_file='lighthouse_results_detailed_20250321_13555
     
     return df_final, output_file, summary_file
 
+def process_accessibility_issues(df):
+    """
+    Process accessibility issues from 'Accessibility_Issues_Details' column and extract
+    information about each issue into separate columns.
+    
+    Args:
+        df: DataFrame containing the 'Accessibility_Issues_Details' column
+        
+    Returns:
+        DataFrame with additional columns for each issue type
+    """
+    # Create a copy of the input DataFrame to avoid modifying the original
+    result_df = df.copy()
+    
+    # Check if the required column exists
+    if 'Accessibility_Issues_Details' not in result_df.columns:
+        print("Column 'Accessibility_Issues_Details' not found in the DataFrame")
+        return result_df
+    
+    # Dictionary to store all extracted issues and their scores/severity
+    all_issues = {}
+    
+    # Process each row in the DataFrame
+    for idx, row in result_df.iterrows():
+        # Skip rows with NaN values in the Accessibility_Issues_Details column
+        if pd.isna(row['Accessibility_Issues_Details']):
+            continue
+            
+        # Split the text by semicolon to separate different issues
+        issues = row['Accessibility_Issues_Details'].split(';')
+        
+        for issue in issues:
+            issue = issue.strip()
+            if not issue:
+                continue
+            
+            # Try different regex patterns to handle various formats
+            
+            # Pattern 1: Issue Name (Score: XX.XX, Severity: YYY)
+            match = re.match(r'(.*?)\s*\(Score:\s*([\d.]+),\s*Severity:\s*(\w+)\)', issue)
+            if match:
+                issue_name = match.group(1).strip()
+                score = match.group(2)
+                severity = match.group(3)
+            else:
+                # Pattern 2: Issue Name (Score: XX.XX)
+                match = re.match(r'(.*?)\s*\(Score:\s*([\d.]+)\)', issue)
+                if match:
+                    issue_name = match.group(1).strip()
+                    score = match.group(2)
+                    severity = "Unknown"
+                else:
+                    # Pattern 3: Just use the entire text as the issue name
+                    issue_name = issue.strip()
+                    score = "N/A"
+                    severity = "Unknown"
+            
+            # Create the combined value with score and severity
+            value = f"{score};{severity}"
+            
+            # Create or update the dictionary entry for this issue
+            if issue_name not in all_issues:
+                all_issues[issue_name] = {}
+            
+            all_issues[issue_name][idx] = value
+    
+    # Create a new column for each unique issue type
+    for issue_name, values in all_issues.items():
+        # Clean up the column name to make it a valid DataFrame column
+        column_name = issue_name.replace(' ', '_').replace('`', '').replace('\'', '').replace('"', '').replace('.', '')
+        # Limit column name length to avoid overly long names
+        if len(column_name) > 63:
+            column_name = column_name[:60] + '...'
+        result_df[column_name] = pd.Series(values)
+    
+    print(f"Extracted {len(all_issues)} unique accessibility issues")
+    return result_df
+
 if __name__ == "__main__":
     # Try to find the detailed results file based on various patterns
     data_files = []
@@ -378,8 +457,20 @@ if __name__ == "__main__":
         input_file = 'original_files_backup/lighthouse_results_detailed_20250321_135559.xlsx'
         print(f"Using default file: {input_file}")
     
-    # Process the data
+    # Process the data for cleaning
     cleaned_df, output_file, summary_file = clean_lighthouse_data(input_file)
     print(f"\nData cleaning completed! Files created:")
     print(f"1. {output_file} - Optimized data with specific column names")
-    print(f"2. {summary_file} - Summary with just the most essential information") 
+    print(f"2. {summary_file} - Summary with just the most essential information")
+    
+    # Now process the accessibility issues from the optimized file
+    print("\nProcessing accessibility issues from optimized data...")
+    try:
+        input_file = output_file  # Use the optimized file as input
+        df = pd.read_excel(input_file)
+        result_df = process_accessibility_issues(df)
+        output_issues_file = 'lighthouse_scores_with_extracted_issues.xlsx'
+        result_df.to_excel(output_issues_file, index=False)
+        print(f"3. {output_issues_file} - Optimized data with extracted accessibility issues")
+    except Exception as e:
+        print(f"Error processing accessibility issues: {e}") 
