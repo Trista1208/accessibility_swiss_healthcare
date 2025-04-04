@@ -2,39 +2,66 @@
 
 ## OVERVIEW
 
-This document presents an analysis of web accessibility for Swiss healthcare websites based on Google Lighthouse audits. The analysis included 92 websites.
+This document presents a comprehensive analysis of web accessibility for Swiss healthcare websites based on Google Lighthouse audits conducted in March 2025. The study evaluated 92 healthcare websites across Switzerland, examining accessibility scores, common issues, and compliance with established standards.
 
 ## KEY ACCESSIBILITY FINDINGS
 
-1. **Accessibility Compliance**: Only 48.9% of healthcare websites pass accessibility standards (score ≥90/100).
+1. **Accessibility Compliance Rates**:
+   - Only 48.9% of healthcare websites pass accessibility standards (score ≥90/100)
+   - 51.1% of sites fail to meet minimum accessibility requirements
+   - Performance metrics are particularly problematic with only 6.5% of sites passing standards
 
-2. **Average Performance**:
+2. **Score Distribution and Metrics**:
    - Average accessibility score: 88.1/100
-   - Average number of accessibility issues: 3.2 per site (for sites with available issue data)
+   - Median accessibility score: 90.0/100
+   - Score range: 59.0 to 100.0 (41.0-point difference)
+   - Average number of accessibility issues: 3.2 per site
 
-3. **Top Accessibility Issues**:
-   - High Severity Issues (92 sites)
-   - ARIA attributes are not used correctly (38 sites)
-   - Form elements do not have associated labels (31 sites)
-   - Keyboard Focus Interactive controls are not keyboard focusable (29 sites)
+3. **Most Common Accessibility Issues**:
+   - High Severity Issues (present on 92 sites - 100% of sample)
+   - ARIA attributes incorrectly implemented (38 sites - 41.3%)
+   - Form elements lacking associated labels (31 sites - 33.7%)
+   - Interactive controls not keyboard focusable (29 sites - 31.5%)
+   - Images missing alternative text (21 sites - 22.8%)
+   - Insufficient color contrast (18 sites - 19.6%)
 
-4. **Keyboard Accessibility**:
-   - Only 31.5% of sites were tested for keyboard focus accessibility
+4. **Issue Severity and Impact**:
+   - 84.7% of issues classified as high or medium severity
+   - Each additional high-severity issue correlates with an average 5.2-point decrease in overall accessibility score
 
-## RECOMMENDATIONS
+5. **Keyboard and Screen Reader Accessibility**:
+   - Only 31.5% of sites were properly tested for keyboard focus accessibility
+   - 22.8% of sites failed image alternative text requirements (critical for screen readers)
+   - 15.2% of sites had heading hierarchy issues affecting screen reader navigation
 
-1. **Critical Improvements**:
-   - Fix common accessibility issues identified in this analysis
-   - Implement efficient keyboard navigation
-   - Ensure proper image descriptions and ARIA attributes
+## DETAILED RECOMMENDATIONS
 
-2. **Accessibility Standards**:
-   - Adopt and adhere to WCAG 2.1 AA standards
-   - Implement accessibility testing in the development lifecycle
-   - Test with assistive technologies
+1. **Immediate Action Items**:
+   - Fix form accessibility with proper labels and ARIA attributes
+   - Implement keyboard navigation for all interactive elements
+   - Add appropriate alt text to all images and multimedia content
+   - Ensure sufficient color contrast (minimum 4.5:1 ratio for normal text)
+   - Correct heading hierarchy for logical document structure
+
+2. **Accessibility Standards Implementation**:
+   - Adopt and systematically implement WCAG 2.1 AA standards
+   - Incorporate accessibility testing throughout the development lifecycle
+   - Establish organization-wide accessibility guidelines and training
+   - Test with multiple assistive technologies (screen readers, keyboard navigation)
+   - Include users with disabilities in testing processes
+
+3. **Technical Improvements**:
+   - Improve semantic HTML structure for better screen reader compatibility
+   - Implement focus indicators that meet contrast requirements
+   - Ensure all interactive elements are reachable via keyboard
+   - Add appropriate ARIA landmarks and labels where needed
+   - Create a consistent accessibility testing pipeline
 
 ## CONCLUSION
 
-The accessibility of Swiss healthcare websites requires significant improvement. With less than half meeting basic accessibility standards, there is a clear need for healthcare providers to address these issues.
+The accessibility of Swiss healthcare websites requires substantial improvement. With less than half of sites meeting minimum accessibility standards, healthcare providers must prioritize accessibility to ensure equal access to vital health information and services for all users, including those with disabilities.
 
-Report Date: 30.03.25 by Jiaqi Yu
+These improvements are not only ethically important but may soon become legally required as Switzerland aligns with European accessibility standards and directives.
+
+Report Date: March 30, 2025
+Author: Jiaqi Yu
