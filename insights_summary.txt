@@ -37,4 +37,4 @@ This document presents an analysis of web accessibility for Swiss healthcare web
 
 The accessibility of Swiss healthcare websites requires significant improvement. With less than half meeting basic accessibility standards, there is a clear need for healthcare providers to address these issues.
 
-Report Date: {timestamp}
+Report Date: 30.03.25 by Jiaqi Yu

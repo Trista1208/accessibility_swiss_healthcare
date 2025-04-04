@@ -1,55 +1,73 @@
 # Healthcare Website Accessibility Analysis Summary
 
 ## Overview
-- **Websites Analyzed:** 92
-- **Unique Domains:** 89
+- **Websites Analyzed:** 99
+- **Unique Domains:** 95
 - **Average Accessibility Score:** 88.1/100
-- **Pass Rate (≥90):** 48.9%
-- **Average number of accessibility issues:** 3.2 per site
+- **Pass Rate (≥90):** 45.5%
+- **Average Issues per Site:** 3.2
+- **Average High Severity Issues:** 1.4
 
-## Key Findings
+## Score Distribution
+- **Minimum Score:** 59.0
+- **Maximum Score:** 100.0
+- **Median Score:** 89.0
+- **Standard Deviation:** 7.7
 
-### Common Accessibility Issues
-- **High Severity Issues:** Found on 92 sites (100.0%)
-- **ARIA attributes are not used correctly:** Found on 38 sites (41.3%)
-- **Form elements do not have associated labels:** Found on 31 sites (33.7%)
-- **Image elements do not have [alt] attributes:** Found on 30 sites (32.6%)
-- **Accessibility Keyboard Focus Interactive controls are not keyboard focusable:** Found on 29 sites (31.5%)
+## Common Accessibility Issues
+- **Accessibility_aria_general_details:** 41 sites (41.4%)
+- **Accessibility_aria_general_priority:** 41 sites (41.4%)
+- **Accessibility_aria_general_wcag:** 41 sites (41.4%)
+- **Accessibility_forms_labels_wcag:** 34 sites (34.3%)
+- **Form elements do not have associated labels:** 34 sites (34.3%)
+- **Accessibility_images_alt_text_wcag:** 33 sites (33.3%)
+- **Image elements do not have `[alt]` attributes:** 33 sites (33.3%)
+- **Accessibility_headings_hierarchy_wcag:** 33 sites (33.3%)
+- **Accessibility_navigation_landmarks_wcag:** 30 sites (30.3%)
+- **Accessibility_color_contrast_visual_design_wcag:** 30 sites (30.3%)
 
-### Keyboard Focus Accessibility
-- 29 sites (31.5%) have keyboard accessibility issues
+## Domain Performance
 
-### Domain Performance
-#### Top Performers
+Top 5 Performing Domains:
 - **www.crr-suva.ch:** 100.0/100
 - **ch.linkedin.com:** 100.0/100
 - **www.adecco.com:** 100.0/100
+- **www.swissinfo.ch:** 100.0/100
+- **www.derungs.swiss:** 100.0/100
 
-#### Needs Improvement
+Domains Needing Improvement:
 - **www.lucernehealth.com:** 59.0/100
 - **boris.unibe.ch:** 65.0/100
 - **www.chuv.ch:** 70.0/100
+- **www.pwc.ch:** 71.0/100
+- **www.clinic-badragaz.ch:** 75.0/100
 
 ## Recommendations
 
 ### High Priority
-1. **Fix keyboard accessibility issues** - Ensure all interactive elements are keyboard accessible
-2. **Address high severity issues** - Focus on high impact issues that affect many users
-3. **Ensure proper image alt text** - All images should have appropriate alternative text
+1. **Address high severity issues** - Focus on high impact issues that affect many users
+2. **Fix form accessibility** - Ensure all form elements have proper labels
+3. **Add image alt text** - All images should have appropriate alternative text
+4. **Improve ARIA implementation** - Ensure ARIA attributes are used correctly
+5. **Fix color contrast** - Ensure text has sufficient contrast with background colors
 
 ### Medium Priority
-1. **Improve ARIA attributes** - Ensure ARIA attributes are used correctly
-2. **Fix form labeling** - All form elements should have proper labels
-3. **Address color contrast issues** - Ensure text has sufficient contrast with background colors
-
-### Low Priority
 1. **Improve document structure** - Use proper heading hierarchy
 2. **Add landmark regions** - Improve navigation with proper landmarks
 3. **Review link text** - Ensure all links have descriptive text
+4. **Test with screen readers** - Verify content is accessible with assistive technologies
+5. **Validate HTML** - Ensure proper semantic markup
+
+### Long-term Strategy
+1. **Implement accessibility testing** in development workflow
+2. **Regular audits** - Schedule periodic accessibility assessments
+3. **Staff training** - Provide accessibility best practices training
+4. **User testing** - Conduct testing with users who rely on assistive technologies
+5. **Documentation** - Create accessibility guidelines for content creators
 
 ## Next Steps
-1. Share these findings with development teams
+1. Share findings with development teams
 2. Prioritize fixes based on severity and impact
-3. Implement an accessibility testing process
-4. Create a timeline for addressing critical issues
-5. Perform follow-up testing after remediation
+3. Create remediation timeline
+4. Implement automated accessibility testing
+5. Schedule follow-up assessment
